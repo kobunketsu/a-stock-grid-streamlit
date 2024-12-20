@@ -5,16 +5,18 @@ import numpy as np
 
 class GridStrategy:
     def __init__(self):
+        self.etf_code = "560610"  # ETF代码
+        self.etf_name = "A500ETF"  # ETF名称
         self.base_price = 0.960  # 基准价
         self.price_range = (0.910, 1.010)  # 价格区间
         self.up_sell_rate = 0.0064  # 上涨卖出比例
-        self.up_callback_rate = 0.002  # 上涨回调比例
-        self.down_buy_rate = 0.0064  # 下跌买入比例
-        self.down_rebound_rate = 0.002  # 下跌反弹比例
-        self.shares_per_trade = 6000  # 每次交易股数
-        self.initial_positions = 30000  # 初始持仓数量
+        self.up_callback_rate = 0.003  # 上涨回调比例
+        self.down_buy_rate = 0.0094  # 下跌买入比例
+        self.down_rebound_rate = 0.003  # 下跌反弹比例
+        self.shares_per_trade = 5000  # 每次交易股数
+        self.initial_positions = 50000  # 初始持仓数量
         self.positions = self.initial_positions  # 当前持仓数量
-        self.initial_cash = 30000  # 初始现金
+        self.initial_cash = 50000  # 初始现金
         self.cash = self.initial_cash  # 当前现金
         self.trades = []  # 交易记录
         # 添加无法交易统计
@@ -27,17 +29,29 @@ class GridStrategy:
         self.multiple_trade = True  # 是否启用倍数交易
         
     def backtest(self, start_date=None, end_date=None):
-        # 获取历史数据
-        if start_date is None:
+        """
+        执行回测
+        :param start_date: 开始日期，格式：'YYYY-MM-DD'
+        :param end_date: 结束日期，格式：'YYYY-MM-DD'
+        """
+        # 处理日期参数
+        if start_date is None or end_date is None:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=20)
+        else:
+            # 将字符串日期转换为datetime对象
+            start_date = datetime.strptime(start_date, '%Y-%m-%d')
+            end_date = datetime.strptime(end_date, '%Y-%m-%d')
         
         start_date_str = start_date.strftime('%Y%m%d')
         end_date_str = end_date.strftime('%Y%m%d')
         
+        print(f"\n=== {self.etf_name}({self.etf_code}) 回测报告 ===")
+        print(f"回测区间: {start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')}")
+        
         try:
             df = ak.fund_etf_hist_em(
-                symbol="560610",
+                symbol=self.etf_code,
                 period="daily",
                 start_date=start_date_str,
                 end_date=end_date_str,
@@ -183,6 +197,7 @@ class GridStrategy:
             })
     
     def calculate_profit(self, last_price):
+        print(f"\n=== {self.etf_name}({self.etf_code}) 回测结果 ===")
         # 计算初始总资产（现金 + 初始持仓市值）
         initial_total = self.initial_cash + (self.initial_positions * self.base_price)
         # 计算最终总资产（现金 + 当前持仓市值）
@@ -190,7 +205,6 @@ class GridStrategy:
         profit = final_assets - initial_total
         profit_rate = (profit / initial_total) * 100
         
-        print("\n=== 回测结果 ===")
         print(f"初始现金: {self.initial_cash:,.2f}")
         print(f"初始持仓: {self.initial_positions}股 (按{self.base_price:.3f}元计算)")
         print(f"初始总资产: {initial_total:,.2f}")
@@ -207,7 +221,7 @@ class GridStrategy:
             if count > 0:
                 print(f"{reason}: {count}次")
         
-        print("\n=== 交易记录 ===")
+        print(f"\n=== {self.etf_name}({self.etf_code}) 交易记录 ===")
         trades_df = pd.DataFrame(self.trades)
         if not trades_df.empty:
             print(trades_df)
@@ -216,7 +230,8 @@ class GridStrategy:
 
 if __name__ == "__main__":
     strategy = GridStrategy()
-    # 回测最近20天
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=20)
-    strategy.backtest(start_date, end_date)
+    # 示例：指定日期范围进行回测
+    strategy.backtest('2024-10-15', '2024-12-20')
+    
+    # 或者使用默认的最近20天
+    # strategy.backtest()
