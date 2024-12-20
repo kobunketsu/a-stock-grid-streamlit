@@ -7,10 +7,10 @@ class GridStrategy:
     def __init__(self):
         self.base_price = 0.960  # 基准价
         self.price_range = (0.910, 1.010)  # 价格区间
-        self.up_sell_rate = 0.0065  # 上涨卖出比例
-        self.up_callback_rate = 0.0020  # 上涨回调比例
-        self.down_buy_rate = 0.0065  # 下跌买入比例
-        self.down_rebound_rate = 0.0020  # 下跌反弹比例
+        self.up_sell_rate = 0.0064  # 上涨卖出比例
+        self.up_callback_rate = 0.002  # 上涨回调比例
+        self.down_buy_rate = 0.0064  # 下跌买入比例
+        self.down_rebound_rate = 0.002  # 下跌反弹比例
         self.shares_per_trade = 6000  # 每次交易股数
         self.initial_positions = 30000  # 初始持仓数量
         self.positions = self.initial_positions  # 当前持仓数量
@@ -24,6 +24,7 @@ class GridStrategy:
             "现金不足": 0,
             "买入价格超范围": 0
         }
+        self.multiple_trade = True  # 是否启用倍数交易
         
     def backtest(self, start_date=None, end_date=None):
         # 获取历史数据
@@ -43,66 +44,100 @@ class GridStrategy:
                 adjust="qfq"
             )
             
-            # 记录上一次触发价格
-            last_trigger_price_up = self.base_price
-            last_trigger_price_down = self.base_price
-            
             # 遍历每个交易日进行回测
             for i, row in df.iterrows():
-                current_low = row['最低']
-                current_high = row['最高']
+                # 获取当日价格点
+                daily_prices = [
+                    (row['开盘'], '开盘'),
+                    (row['最高'], '最高'),
+                    (row['最低'], '最低'),
+                    (row['收盘'], '收盘')
+                ]
                 
-                # 计算涨跌幅
-                if i > 0:
-                    prev_close = df.iloc[i-1]['收盘']
-                    change_rate = ((row['收盘'] - prev_close) / prev_close) * 100
-                    change_symbol = "+" if change_rate > 0 else "-" if change_rate < 0 else ""
-                else:
-                    change_rate = 0
-                    change_symbol = ""
+                # 记录上一次触发价格（如果是当天第一次交易）
+                if i == 0:
+                    last_trigger_price_up = self.base_price
+                    last_trigger_price_down = self.base_price
+                    
+                trades_before = len(self.trades)
                 
-                # 打印当日行情数据
                 print(f"\n=== {row['日期']} 行情 ===")
                 print(f"开盘: {row['开盘']:.3f}")
                 print(f"最高: {row['最高']:.3f}")
                 print(f"最低: {row['最低']:.3f}")
                 print(f"收盘: {row['收盘']:.3f}")
-                print(f"涨跌幅: {change_symbol}{abs(change_rate):.2f}%")
-                amplitude = ((row['最高'] - row['最低']) / row['收盘']) * 100
-                print(f"振幅: {amplitude:.2f}%")
                 
-                trades_before = len(self.trades)
-                
-                # 检查卖出条件
-                if self.positions > 0:
-                    sell_trigger_price = last_trigger_price_up * (1 + self.up_sell_rate)
-                    if current_high >= sell_trigger_price:
-                        execute_price = sell_trigger_price * (1 - self.up_callback_rate)
-                        if execute_price >= current_low:
-                            self.sell(execute_price, row['日期'])
-                            last_trigger_price_up = execute_price
-                        else:
-                            print(f"\n无法卖出 - 执行价 {execute_price:.3f} 高于当日最低价 {current_low:.3f}")
-                            self.failed_trades["卖出价格超范围"] += 1
-                else:
-                    print("\n无法卖出 - 当前无持仓")
-                    self.failed_trades["无持仓"] += 1
-                
-                # 检查买入条件
-                buy_trigger_price = last_trigger_price_down * (1 - self.down_buy_rate)
-                if current_low <= buy_trigger_price:
-                    execute_price = buy_trigger_price * (1 + self.down_rebound_rate)
-                    required_cash = execute_price * self.shares_per_trade
-                    if execute_price <= current_high:
-                        if self.cash >= required_cash:
-                            self.buy(execute_price, row['日期'])
-                            last_trigger_price_down = execute_price
-                        else:
-                            print(f"\n无法买入 - 所需资金 {required_cash:.2f}, 当前现金 {self.cash:.2f}")
-                            self.failed_trades["现金不足"] += 1
+                # 遍历日内价格点
+                for current_price, price_type in daily_prices:
+                    print(f"\n检查{price_type}价格点: {current_price:.3f}")
+                    
+                    # 检查卖出条件
+                    if self.positions > 0:
+                        sell_trigger_price = last_trigger_price_up * (1 + self.up_sell_rate)
+                        if current_price >= sell_trigger_price:
+                            price_diff = (current_price - sell_trigger_price) / sell_trigger_price
+                            multiple = int(price_diff / self.up_sell_rate) + 1 if self.multiple_trade else 1
+                            multiple = min(multiple, self.positions // self.shares_per_trade)  # 不能超过持仓量
+                            
+                            execute_price = sell_trigger_price * (1 - self.up_callback_rate)
+                            if execute_price <= current_price:
+                                if self.positions >= self.shares_per_trade * multiple:
+                                    for _ in range(multiple):
+                                        self.sell(execute_price, row['日期'])
+                                    last_trigger_price_up = execute_price
+                                    last_trigger_price_down = execute_price
+                                    print(f"触发卖出 - 触发价: {sell_trigger_price:.3f}, 执行价: {execute_price:.3f}")
+                                    print(f"交易份额: {self.shares_per_trade * multiple}, 当前总持仓: {self.positions}")
+                                else:
+                                    print(f"\n无法卖出 - 当前持仓{self.positions}不足")
+                                    self.failed_trades["无持仓"] += 1
+                            else:
+                                print(f"\n无法卖出 - 执行价 {execute_price:.3f} 高于当前价格 {current_price:.3f}")
+                                self.failed_trades["卖出价格超范围"] += 1
                     else:
-                        print(f"\n无法买入 - 执行价 {execute_price:.3f} 低于当日最高价 {current_high:.3f}")
-                        self.failed_trades["买入价格超范围"] += 1
+                        print("\n无法卖出 - 当前无持仓")
+                        self.failed_trades["无持仓"] += 1
+                    
+                    # 检查买入条件
+                    buy_trigger_price = last_trigger_price_down * (1 - self.down_buy_rate)
+                    print(f"\n当前价格: {current_price:.3f}")
+                    print(f"上次触发价: {last_trigger_price_down:.3f}")
+                    print(f"买入触发价: {buy_trigger_price:.3f}")
+                    
+                    if current_price <= buy_trigger_price:
+                        # 计算可以买入的倍数
+                        price_diff = (buy_trigger_price - current_price) / buy_trigger_price
+                        multiple = int(price_diff / self.down_buy_rate) + 1 if self.multiple_trade else 1
+                        
+                        execute_price = buy_trigger_price * (1 + self.down_rebound_rate)
+                        required_cash = execute_price * self.shares_per_trade * multiple
+                        
+                        print(f"价格差异: {price_diff:.4f}")
+                        print(f"计算执行价: {execute_price:.3f}")
+                        print(f"交易倍数: {multiple}")
+                        print(f"所需资金: {required_cash:.2f}, 当前现金: {self.cash:.2f}")
+                        
+                        if self.cash >= required_cash:
+                            for _ in range(multiple):
+                                self.buy(execute_price, row['日期'])
+                            last_trigger_price_down = execute_price
+                            print(f"触发买入 - 触发价: {buy_trigger_price:.3f}, 执行价: {execute_price:.3f}")
+                            print(f"交易份额: {self.shares_per_trade * multiple}, 当前总持仓: {self.positions}")
+                        else:
+                            # 尝试减少倍数
+                            while multiple > 0 and self.cash < required_cash:
+                                multiple -= 1
+                                required_cash = execute_price * self.shares_per_trade * multiple
+                            
+                            if multiple > 0:
+                                for _ in range(multiple):
+                                    self.buy(execute_price, row['日期'])
+                                last_trigger_price_down = execute_price
+                                print(f"触发部分买入 - 触发价: {buy_trigger_price:.3f}, 执行价: {execute_price:.3f}")
+                                print(f"交易份额: {self.shares_per_trade * multiple}, 当前总持仓: {self.positions}")
+                            else:
+                                print(f"\n无法买入 - 所需资金 {required_cash:.2f}, 当前现金 {self.cash:.2f}")
+                                self.failed_trades["现金不足"] += 1
                 
                 # 打印当日交易记录和交易后状态
                 trades_after = len(self.trades)
@@ -113,7 +148,6 @@ class GridStrategy:
                 else:
                     print("\n当日无交易")
                 
-                # 显示交易后的持仓和现金状态
                 print(f"当日结束持仓: {self.positions}, 现金: {self.cash:.2f}")
             
             # 计算收益
