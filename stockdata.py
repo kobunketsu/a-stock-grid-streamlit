@@ -14,33 +14,55 @@ class GridStrategyOptimizer:
     # 添加类常量
     REBOUND_RATE_MAX_RATIO = 0.3  # 回调/反弹率相对于主要率的最大比例
     
-    def __init__(self, start_date: datetime = datetime(2024, 11, 1), 
+    def __init__(self, symbol: str = "560610",
+                 start_date: datetime = datetime(2024, 11, 1), 
                  end_date: datetime = datetime(2024, 12, 20),
                  ma_period: int = None,  # 均线周期
-                 ma_protection: bool = False):  # 是否开启均线保护
+                 ma_protection: bool = False,  # 是否开启均线保护
+                 initial_positions: int = 50000,  # 初始持仓
+                 initial_cash: int = 50000,  # 初始资金
+                 price_range: tuple = (0.910, 1.010)):  # 价格范围
         
         # 先初始化基本参数
         self.start_date = start_date
         self.end_date = end_date
         
-        # 获取ETF基金名称
+        # 获取ETF基金名称和初始价格
         try:
             # 获取所有ETF基金列表
             etf_df = ak.fund_etf_spot_em()
             # 查找对应的ETF基金名称
-            etf_name = etf_df[etf_df['代码'] == '560610']['名称'].values[0]
-        except Exception as e:
-            print(f"获取ETF名称失败: {e}")
-            etf_name = "未知ETF"
+            etf_name = etf_df[etf_df['代码'] == symbol]['名称'].values[0]
             
-        # 先初始化固定参数（使用默认价格范围）
+            # 获取开始日期的价格数据
+            start_date_str = start_date.strftime('%Y%m%d')
+            df = ak.fund_etf_hist_em(
+                symbol=symbol,
+                start_date=start_date_str,
+                end_date=start_date_str
+            )
+            
+            if not df.empty:
+                # 计算开盘价和收盘价的中间价格
+                base_price = (df.iloc[0]['开盘'] + df.iloc[0]['收盘']) / 2
+                print(f"使用开始日期的中间价格作为基准价: {base_price:.3f}")
+            else:
+                base_price = 0.960  # 如果获取失败，使用默认值
+                print(f"无法获取开始日期价格，使用默认基准价: {base_price}")
+                
+        except Exception as e:
+            print(f"获取ETF名称或价格失败: {e}")
+            etf_name = "未知ETF"
+            base_price = 0.960  # 使用默认值
+            
+        # 初始化固定参数
         self.fixed_params = {
-            "symbol": "560610",
+            "symbol": symbol,
             "symbol_name": etf_name,
-            "base_price": 0.960,
-            "price_range": (0.910, 1.010),  # 默认价格范围
-            "initial_positions": 50000,
-            "initial_cash": 50000,
+            "base_price": base_price,
+            "price_range": price_range,
+            "initial_positions": initial_positions,
+            "initial_cash": initial_cash,
             "start_date": start_date,
             "end_date": end_date
         }
@@ -539,12 +561,16 @@ class GridStrategyOptimizer:
         )
 
 if __name__ == "__main__":
-    # 在创建优化器实例时指定回测区间和不同的均线周期
+    # 在创建优化器实例时指定所有参数
     optimizer = GridStrategyOptimizer(
+        symbol="560610",  # ETF代码
         start_date=datetime(2024, 11, 11),
         end_date=datetime(2024, 12, 20),
         ma_period=20,
-        ma_protection=True
+        ma_protection=True,
+        initial_positions=50000,  # 初始持仓
+        initial_cash=50000,  # 初始资金
+        price_range=(0.910, 1.10)  # 价格范围
     )
     n_trials = 100
     total_trials = int(n_trials * 1.5)  # 计算总试验次数
