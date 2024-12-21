@@ -1,3 +1,4 @@
+from progress_window import ProgressWindow
 import optuna
 from datetime import datetime, timedelta
 import numpy as np
@@ -8,94 +9,6 @@ import akshare as ak
 import tkinter as tk
 from tkinter import ttk
 import threading
-
-class ProgressWindow:
-    def __init__(self, total_trials):
-        self.total_trials = total_trials
-        self.current_trial = 0
-        self.root = None
-        self.progress = None
-        self.percent_label = None
-        self.label = None
-        self.time_label = None
-        self.eta_label = None  # 新增预计完成时间标签
-        self.start_time = None
-        
-    def create_window(self):
-        """在主线程中创建窗口"""
-        self.root = tk.Tk()
-        self.root.title("优化进度")
-        self.root.geometry("300x200")  # 增加窗口高度
-        
-        # 设置窗口在屏幕中央
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        x = (screen_width - 300) // 2
-        y = (screen_height - 200) // 2
-        self.root.geometry(f"300x200+{x}+{y}")
-        
-        # 进度标签
-        self.label = ttk.Label(self.root, text="正在优化参数...", font=('Arial', 10))
-        self.label.pack(pady=10)
-        
-        # 进度条
-        self.progress = ttk.Progressbar(
-            self.root, 
-            orient="horizontal",
-            length=200, 
-            mode="determinate"
-        )
-        self.progress.pack(pady=10)
-        
-        # 百分比标签
-        self.percent_label = ttk.Label(self.root, text="0%", font=('Arial', 10))
-        self.percent_label.pack(pady=5)
-        
-        # 耗时标签
-        self.time_label = ttk.Label(self.root, text="耗时: 0:00:00", font=('Arial', 10))
-        self.time_label.pack(pady=5)
-        
-        # 预计完成时间标签
-        self.eta_label = ttk.Label(self.root, text="预计剩余: --:--:--", font=('Arial', 10))
-        self.eta_label.pack(pady=5)
-        
-        # 记录开始时间
-        self.start_time = datetime.now()
-        
-    def update_progress(self, trial_number):
-        if self.root is None:
-            return
-            
-        self.current_trial = trial_number
-        progress = (self.current_trial / self.total_trials) * 100
-        self.progress["value"] = progress
-        self.percent_label["text"] = f"{progress:.1f}%"
-        
-        # 更新耗时和预计完成时间
-        if self.start_time and self.current_trial > 0:
-            # 计算已用时间
-            elapsed_time = datetime.now() - self.start_time
-            hours = int(elapsed_time.total_seconds() // 3600)
-            minutes = int((elapsed_time.total_seconds() % 3600) // 60)
-            seconds = int(elapsed_time.total_seconds() % 60)
-            self.time_label["text"] = f"耗时: {hours}:{minutes:02d}:{seconds:02d}"
-            
-            # 计算预计剩余时间
-            if self.current_trial > 0:
-                time_per_trial = elapsed_time.total_seconds() / self.current_trial
-                remaining_trials = self.total_trials - self.current_trial
-                remaining_seconds = time_per_trial * remaining_trials
-                
-                eta_hours = int(remaining_seconds // 3600)
-                eta_minutes = int((remaining_seconds % 3600) // 60)
-                eta_seconds = int(remaining_seconds % 60)
-                self.eta_label["text"] = f"预计剩余: {eta_hours}:{eta_minutes:02d}:{eta_seconds:02d}"
-        
-        self.root.update()
-        
-    def close(self):
-        if self.root is not None:
-            self.root.destroy()
 
 class GridStrategyOptimizer:
     # 添加类常量
