@@ -26,8 +26,19 @@ class GridStrategy:
         }
         self.final_profit_rate = 0.0
         self.multiple_trade = True  # 启用倍数交易
+        self.verbose = False  # 添加 verbose 属性，默认为 False
 
     def buy(self, price, time):
+        """
+        执行买入操作
+        """
+        # 首先验证价格是否在允许范围内
+        if not (self.price_range[0] <= price <= self.price_range[1]):
+            if self.verbose:
+                print(f"买入价格 {price:.3f} 超出允许范围 {self.price_range}")
+            self.failed_trades["买入价格超范围"] += 1
+            return False
+            
         amount = price * self.shares_per_trade
         if self.cash >= amount:
             self.positions += self.shares_per_trade
@@ -43,6 +54,16 @@ class GridStrategy:
         return False
 
     def sell(self, price, time):
+        """
+        执行卖出操作
+        """
+        # 首先验证价格是否在允许范围内
+        if not (self.price_range[0] <= price <= self.price_range[1]):
+            if self.verbose:
+                print(f"卖出价格 {price:.3f} 超出允许范围 {self.price_range}")
+            self.failed_trades["卖出价格超范围"] += 1
+            return False
+            
         if self.positions >= self.shares_per_trade:
             amount = price * self.shares_per_trade
             self.positions -= self.shares_per_trade
@@ -187,6 +208,9 @@ class GridStrategy:
             raise
 
     def calculate_profit(self, last_price, verbose=False):
+        """
+        计算并打印回测结果
+        """
         initial_total = self.initial_cash + (self.initial_positions * self.base_price)
         final_assets = self.cash + (self.positions * last_price)
         profit = final_assets - initial_total
@@ -194,6 +218,16 @@ class GridStrategy:
         
         if verbose:
             print("\n=== 回测结果 ===")
+            print("策略参数:")
+            print(f"基准价格: {self.base_price:.3f}")
+            print(f"价格区间: {self.price_range[0]:.3f} - {self.price_range[1]:.3f}")
+            print(f"每上涨卖出: {self.up_sell_rate*100:.2f}%")
+            print(f"每下跌买入: {self.down_buy_rate*100:.2f}%")
+            print(f"上涨回调: {self.up_callback_rate*100:.2f}%")
+            print(f"下跌反弹: {self.down_rebound_rate*100:.2f}%")
+            print(f"单次交易股数: {self.shares_per_trade:,}")
+            
+            print("\n资金状况:")
             print(f"初始现金: {self.initial_cash:,.2f}")
             print(f"初始持仓: {self.initial_positions}股 (按{self.base_price:.3f}元计算)")
             print(f"初始总资产: {initial_total:,.2f}")
@@ -205,6 +239,7 @@ class GridStrategy:
             
             print("\n=== 交易统计 ===")
             print(f"成功交易次数: {len(self.trades)}")
+            
             print("\n未成交统计:")
             for reason, count in self.failed_trades.items():
                 if count > 0:
@@ -216,6 +251,8 @@ class GridStrategy:
                 print(trades_df)
             else:
                 print("无交易记录")
+        
+        return self.final_profit_rate
 
 if __name__ == "__main__":
     strategy = GridStrategy()

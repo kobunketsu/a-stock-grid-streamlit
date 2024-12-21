@@ -9,6 +9,8 @@ import akshare as ak
 import tkinter as tk
 from tkinter import ttk
 import threading
+import io
+from contextlib import redirect_stdout
 
 class GridStrategyOptimizer:
     # 添加类常量
@@ -199,7 +201,7 @@ class GridStrategyOptimizer:
         if close_price > ma_price:
             # 价格在均线上方，将均线价格设为最小值
             new_range = (ma_price, default_range[1])
-            print(f"价格在均线上方，设置最小价格为均线价格: {ma_price:.3f}")
+            print(f"价格在均线上方，设置最小���格为均线价格: {ma_price:.3f}")
         else:
             # 价格在均线下方，将均线价格设为最大值
             new_range = (default_range[0], ma_price)
@@ -524,96 +526,110 @@ class GridStrategyOptimizer:
     def print_results(self, results: Dict[str, Any], top_n: int = 5) -> None:
         """
         打印优化结果并运行最佳参数组合的详细回测
-        @param results: 优化结果
-        @param top_n: 显示前N个最佳结果
         """
-        print("\n=== 参数优化结果 ===")
-        print(f"\n回测区间: {self.fixed_params['start_date'].strftime('%Y-%m-%d')} 至 "
-              f"{self.fixed_params['end_date'].strftime('%Y-%m-%d')}")
+        # 创建一个StringIO对象来捕获输出
+        output = io.StringIO()
+        with redirect_stdout(output):
+            print("\n=== 参数优化结果 ===")
+            print(f"\n回测区间: {self.fixed_params['start_date'].strftime('%Y-%m-%d')} 至 "
+                  f"{self.fixed_params['end_date'].strftime('%Y-%m-%d')}")
+            
+            # 获取所有试验结果
+            trials = results["study"].trials
+            
+            # 使用参数组合作为键来去重
+            unique_trials = {}
+            for trial in trials:
+                # 将参数值转换为元组作为字典键
+                params_tuple = tuple((k, round(v, 6) if isinstance(v, float) else v) 
+                                   for k, v in sorted(trial.params.items()))
+                if params_tuple not in unique_trials or trial.value < unique_trials[params_tuple].value:
+                    unique_trials[params_tuple] = trial
+            
+            # 对去重后的结果排序
+            sorted_trials = sorted(unique_trials.values(), key=lambda t: t.value)[:top_n]
+            
+            # 定义需要转换为百分比的参数名称
+            rate_params = ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']
+            
+            print(f"\n=== 前 {top_n} 个最佳参数组合（已去重） ===")
+            for i, trial in enumerate(sorted_trials, 1):
+                profit_rate = -trial.value  # 转换回正的收益率
+                print(f"\n第 {i} 名:")
+                print(f"收益率: {profit_rate:.2f}%")
+                print(f"交易次数: {trial.user_attrs['trade_count']}")
+                print("参数组合:")
+                for param, value in trial.params.items():
+                    if param in rate_params:
+                        # 将rate类型参数转换为百分比显示
+                        print(f"  {param}: {value*100:.2f}%")
+                    else:
+                        # 非rate类型参数保持原样显示
+                        print(f"  {param}: {value}")
+                print("失败交易统计:")
+                failed_trades = eval(trial.user_attrs["failed_trades"])
+                for reason, count in failed_trades.items():
+                    if count > 0:
+                        print(f"  {reason}: {count}次")
+            
+            print("\n=== 使用最佳参数运行详细回测 ===")
+            # 使用最佳参数运行详细回测
+            best_strategy = GridStrategy(
+                symbol=self.fixed_params["symbol"],
+                symbol_name=self.fixed_params["symbol_name"]
+            )
+            
+            # 设置固定参数
+            best_strategy.base_price = self.fixed_params["base_price"]
+            best_strategy.price_range = self.fixed_params["price_range"]
+            best_strategy.initial_positions = self.fixed_params["initial_positions"]
+            best_strategy.positions = best_strategy.initial_positions
+            best_strategy.initial_cash = self.fixed_params["initial_cash"]
+            best_strategy.cash = best_strategy.initial_cash
+            
+            # 设置最佳参数
+            best_strategy.up_sell_rate = results["best_params"]["up_sell_rate"]
+            best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
+            best_strategy.up_callback_rate = results["best_params"]["up_callback_rate"]
+            best_strategy.down_rebound_rate = results["best_params"]["down_rebound_rate"]
+            best_strategy.shares_per_trade = results["best_params"]["shares_per_trade"]
+            
+            # 运行详细回测
+            best_strategy.backtest(
+                start_date=self.fixed_params["start_date"],
+                end_date=self.fixed_params["end_date"],
+                verbose=True  # 启用详细打印
+            )
         
-        # 获取所有试验结果
-        trials = results["study"].trials
+        # 获取捕获的输出
+        captured_output = output.getvalue()
         
-        # 使用参数组合作为键来去重
-        unique_trials = {}
-        for trial in trials:
-            # 将参数值转换为元组作为字典键
-            params_tuple = tuple((k, round(v, 6) if isinstance(v, float) else v) 
-                               for k, v in sorted(trial.params.items()))
-            if params_tuple not in unique_trials or trial.value < unique_trials[params_tuple].value:
-                unique_trials[params_tuple] = trial
+        # 同时打印到控制台
+        print(captured_output)
         
-        # 对去重后的结果排序
-        sorted_trials = sorted(unique_trials.values(), key=lambda t: t.value)[:top_n]
-        
-        # 定义需要转换为百分比的参数名称
-        rate_params = ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']
-        
-        print(f"\n=== 前 {top_n} 个最佳参数组合（已去重） ===")
-        for i, trial in enumerate(sorted_trials, 1):
-            profit_rate = -trial.value  # 转换回正的收益率
-            print(f"\n第 {i} 名:")
-            print(f"收益率: {profit_rate:.2f}%")
-            print(f"交易次数: {trial.user_attrs['trade_count']}")
-            print("参数组合:")
-            for param, value in trial.params.items():
-                if param in rate_params:
-                    # 将rate类型参数转换为百分比显示
-                    print(f"  {param}: {value*100:.2f}%")
-                else:
-                    # 非rate类型参数保持原样显示
-                    print(f"  {param}: {value}")
-            print("失败交易统计:")
-            failed_trades = eval(trial.user_attrs["failed_trades"])
-            for reason, count in failed_trades.items():
-                if count > 0:
-                    print(f"  {reason}: {count}次")
-        
-        print("\n=== 使用最佳参数运行详细回测 ===")
-        # 使用最佳参数运行详细回测
-        best_strategy = GridStrategy(
-            symbol=self.fixed_params["symbol"],
-            symbol_name=self.fixed_params["symbol_name"]
-        )
-        
-        # 设置固定参数
-        best_strategy.base_price = self.fixed_params["base_price"]
-        best_strategy.price_range = self.fixed_params["price_range"]
-        best_strategy.initial_positions = self.fixed_params["initial_positions"]
-        best_strategy.positions = best_strategy.initial_positions
-        best_strategy.initial_cash = self.fixed_params["initial_cash"]
-        best_strategy.cash = best_strategy.initial_cash
-        
-        # 设置最佳参数
-        best_strategy.up_sell_rate = results["best_params"]["up_sell_rate"]
-        best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
-        best_strategy.up_callback_rate = results["best_params"]["up_callback_rate"]
-        best_strategy.down_rebound_rate = results["best_params"]["down_rebound_rate"]
-        best_strategy.shares_per_trade = results["best_params"]["shares_per_trade"]
-        
-        # 运行详细回测
-        best_strategy.backtest(
-            start_date=self.fixed_params["start_date"],
-            end_date=self.fixed_params["end_date"],
-            verbose=False  # 启用详细打印
-        )
+        # 如果存在进度窗口，将输出存储到窗口对象中
+        if self.progress_window:
+            self.progress_window.capture_output(captured_output)
+            # 启用查看交易详情按钮
+            self.progress_window.root.after(0, self.progress_window.enable_trade_details_button)
+
 
 if __name__ == "__main__":
     # 在创建优化器实例时指定所有参数
     optimizer = GridStrategyOptimizer(
-        symbol="560610",  # ETF代码
-        start_date=datetime(2024, 11, 11),
+        symbol="159300",  # ETF代码
+        start_date=datetime(2024, 10, 10),
         end_date=datetime(2024, 12, 20),
-        ma_period=20,
+        ma_period=55,
         ma_protection=True,
-        initial_positions=50000,  # 初始持仓
-        initial_cash=50000,  # 初始资金
-        price_range=(0.910, 0.920)  # 价格范围
+        initial_positions=0,  # 初始持仓
+        initial_cash=100000,  # 初始资金
+        price_range=(3.9, 4.3)  # 价格范围
     )
     n_trials = 100
     total_trials = int(n_trials * 1.5)  # 计算总试验次数
     
-    # 创建进度窗口，使用总试验次数
+    # 创建进度窗口，使用��试验次数
     progress_window = ProgressWindow(total_trials)
     
     # 创建一个新线程运行优化过程
@@ -639,13 +655,18 @@ if __name__ == "__main__":
                 
                 # 保存到CSV文件
                 trials_df.to_csv("optimization_trials.csv", index=False)
-        finally:
-            # 确保在完成或发生错误时都能安全地关闭窗口
+                
+                # 使用 after 方法在主线程中更新UI
+                if progress_window and progress_window.root:
+                    progress_window.root.after(0, lambda: progress_window.update_label("优化参数完毕！"))
+        except Exception as e:
+            # 发生错误时更新UI显示错误信息
             if progress_window and progress_window.root:
-                try:
-                    progress_window.root.after(100, progress_window.close)
-                except Exception:
-                    pass  # 忽略关闭窗口时的错误
+                progress_window.root.after(0, lambda: progress_window.update_label(f"优化失败: {str(e)}"))
+        finally:
+            # 确保进度条显示100%
+            if progress_window and progress_window.root:
+                progress_window.root.after(0, lambda: progress_window.update_progress(total_trials))
     
     # 在主线程中创建窗口
     progress_window.create_window()
