@@ -57,7 +57,7 @@ class GridStrategy:
             return True
         return False
 
-    def backtest(self, start_date=None, end_date=None):
+    def backtest(self, start_date=None, end_date=None, verbose=False):
         # 处理日期参数
         if start_date is None:
             end_date = datetime.now()
@@ -72,8 +72,9 @@ class GridStrategy:
         end_date_str = end_date.strftime('%Y%m%d')
         
         try:
-            print(f"\n开始回测 {self.symbol_name}({self.symbol})")
-            print(f"回测区间: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
+            if verbose:
+                print(f"\n=== {self.symbol_name}({self.symbol}) 回测报告 ===")
+                print(f"回测区间: {start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')}")
             
             # 使用日线数据而不是分钟数据
             df = ak.fund_etf_hist_em(
@@ -92,7 +93,6 @@ class GridStrategy:
             last_trigger_price_down = self.base_price
             
             for i, row in df.iterrows():
-                # 获取当日价格点
                 daily_prices = [
                     (row['开盘'], '开盘'),
                     (row['最高'], '最高'),
@@ -102,8 +102,17 @@ class GridStrategy:
                 
                 trades_before = len(self.trades)
                 
-                # 遍历日内价格点
+                if verbose:
+                    print(f"\n=== {row['日期']} 行情 ===")
+                    print(f"开盘: {row['开盘']:.3f}")
+                    print(f"最高: {row['最高']:.3f}")
+                    print(f"最低: {row['最低']:.3f}")
+                    print(f"收盘: {row['收盘']:.3f}")
+                
                 for current_price, price_type in daily_prices:
+                    if verbose:
+                        print(f"\n检查{price_type}价格点: {current_price:.3f}")
+                    
                     # 处理卖出逻辑
                     if self.positions > 0:
                         sell_trigger_price = last_trigger_price_up * (1 + self.up_sell_rate)
@@ -119,13 +128,25 @@ class GridStrategy:
                                     if self.sell(execute_price, row['日期']):
                                         last_trigger_price_up = execute_price
                                         last_trigger_price_down = execute_price
+                                        if verbose:
+                                            print(f"触发卖出 - 触发价: {sell_trigger_price:.3f}, 执行价: {execute_price:.3f}")
+                                            print(f"交易份额: {self.shares_per_trade * multiple}, 当前总持仓: {self.positions}")
                             else:
+                                if verbose:
+                                    print(f"\n无法卖出 - 执行价 {execute_price:.3f} 高于当前价格 {current_price:.3f}")
                                 self.failed_trades["卖出价格超范围"] += 1
                     else:
+                        if verbose:
+                            print("\n无法卖出 - 当前无持仓")
                         self.failed_trades["无持仓"] += 1
                     
                     # 处理买入逻辑
                     buy_trigger_price = last_trigger_price_down * (1 - self.down_buy_rate)
+                    if verbose:
+                        print(f"\n当前价格: {current_price:.3f}")
+                        print(f"上次触发价: {last_trigger_price_down:.3f}")
+                        print(f"买入触发价: {buy_trigger_price:.3f}")
+                    
                     if current_price <= buy_trigger_price:
                         price_diff = (buy_trigger_price - current_price) / buy_trigger_price
                         multiple = int(price_diff / self.down_buy_rate) + 1 if self.multiple_trade else 1
@@ -137,48 +158,64 @@ class GridStrategy:
                             for _ in range(multiple):
                                 if self.buy(execute_price, row['日期']):
                                     last_trigger_price_down = execute_price
+                                    if verbose:
+                                        print(f"触发买入 - 触发价: {buy_trigger_price:.3f}, 执行价: {execute_price:.3f}")
+                                        print(f"交易份额: {self.shares_per_trade * multiple}, 当前总持仓: {self.positions}")
                         else:
-                            # 尝试减少倍数
-                            while multiple > 0 and (self.cash < required_cash or current_price > execute_price):
-                                multiple -= 1
-                                required_cash = execute_price * self.shares_per_trade * multiple
-                            
-                            if multiple > 0:
-                                for _ in range(multiple):
-                                    if self.buy(execute_price, row['日期']):
-                                        last_trigger_price_down = execute_price
-                            else:
-                                self.failed_trades["现金不足"] += 1
+                            if verbose:
+                                print(f"\n无法买入 - 所需资金 {required_cash:.2f}, 当前现金 {self.cash:.2f}")
+                            self.failed_trades["现金不足"] += 1
+                
+                # 打印当日交易记录
+                if verbose:
+                    trades_after = len(self.trades)
+                    if trades_after > trades_before:
+                        print("\n当日交易:")
+                        for trade in self.trades[trades_before:trades_after]:
+                            print(f"{trade['操作']} - 价格: {trade['价格']:.3f}, 数量: {trade['数量']}, 金额: {trade['金额']:.2f}")
+                    else:
+                        print("\n当日无交易")
+                    print(f"当日结束持仓: {self.positions}, 现金: {self.cash:.2f}")
             
             # 计算最终收益
-            self.calculate_profit(df.iloc[-1]['收盘'])
+            self.calculate_profit(df.iloc[-1]['收盘'], verbose)
+            
+            return self.final_profit_rate
             
         except Exception as e:
             print(f"回测过程中发生错误: {str(e)}")
             raise
 
-    def calculate_profit(self, last_price):
+    def calculate_profit(self, last_price, verbose=False):
         initial_total = self.initial_cash + (self.initial_positions * self.base_price)
         final_assets = self.cash + (self.positions * last_price)
         profit = final_assets - initial_total
         self.final_profit_rate = (profit / initial_total) * 100
         
-        print("\n=== 回测结果 ===")
-        print(f"初始现金: {self.initial_cash:,.2f}")
-        print(f"初始持仓: {self.initial_positions}股 (按{self.base_price:.3f}元计算)")
-        print(f"初始总资产: {initial_total:,.2f}")
-        print(f"最终现金: {self.cash:,.2f}")
-        print(f"最终持仓: {self.positions}股 (按{last_price:.3f}元计算)")
-        print(f"最终总资产: {final_assets:,.2f}")
-        print(f"总收益: {profit:,.2f}")
-        print(f"收益率: {self.final_profit_rate:.2f}%")
-        
-        print("\n=== 交易统计 ===")
-        print(f"成功交易次数: {len(self.trades)}")
-        print("\n未��交统计:")
-        for reason, count in self.failed_trades.items():
-            if count > 0:
-                print(f"{reason}: {count}次") 
+        if verbose:
+            print("\n=== 回测结果 ===")
+            print(f"初始现金: {self.initial_cash:,.2f}")
+            print(f"初始持仓: {self.initial_positions}股 (按{self.base_price:.3f}元计算)")
+            print(f"初始总资产: {initial_total:,.2f}")
+            print(f"最终现金: {self.cash:,.2f}")
+            print(f"最终持仓: {self.positions}股 (按{last_price:.3f}元计算)")
+            print(f"最终总资产: {final_assets:,.2f}")
+            print(f"总收益: {profit:,.2f}")
+            print(f"收益率: {self.final_profit_rate:.2f}%")
+            
+            print("\n=== 交易统计 ===")
+            print(f"成功交易次数: {len(self.trades)}")
+            print("\n未成交统计:")
+            for reason, count in self.failed_trades.items():
+                if count > 0:
+                    print(f"{reason}: {count}次")
+            
+            print(f"\n=== {self.symbol_name}({self.symbol}) 交易记录 ===")
+            trades_df = pd.DataFrame(self.trades)
+            if not trades_df.empty:
+                print(trades_df)
+            else:
+                print("无交易记录")
 
 if __name__ == "__main__":
     strategy = GridStrategy()

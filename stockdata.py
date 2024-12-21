@@ -170,7 +170,7 @@ class GridStrategyOptimizer:
 
     def print_results(self, results: Dict[str, Any]) -> None:
         """
-        打印优���结果
+        打印优化结果并运行最佳参数组合的详细回测
         """
         print("\n=== 参数优化结果 ===")
         print(f"\n回测区间: {self.fixed_params['start_date'].strftime('%Y-%m-%d')} 至 "
@@ -186,6 +186,35 @@ class GridStrategyOptimizer:
         for reason, count in results["best_failed_trades"].items():
             if count > 0:
                 print(f"{reason}: {count}次")
+        
+        # 使用最佳参数运行详细回测
+        print("\n=== 使用最佳参数运行详细回测 ===")
+        best_strategy = GridStrategy(
+            symbol=self.fixed_params["symbol"],
+            symbol_name=self.fixed_params["symbol_name"]
+        )
+        
+        # 设置固定参数
+        best_strategy.base_price = self.fixed_params["base_price"]
+        best_strategy.price_range = self.fixed_params["price_range"]
+        best_strategy.initial_positions = self.fixed_params["initial_positions"]
+        best_strategy.positions = best_strategy.initial_positions
+        best_strategy.initial_cash = self.fixed_params["initial_cash"]
+        best_strategy.cash = best_strategy.initial_cash
+        
+        # 设置最佳参数
+        best_strategy.up_sell_rate = results["best_params"]["up_sell_rate"]
+        best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
+        best_strategy.up_callback_rate = results["best_params"]["up_callback_rate"]
+        best_strategy.down_rebound_rate = results["best_params"]["down_rebound_rate"]
+        best_strategy.shares_per_trade = results["best_params"]["shares_per_trade"]
+        
+        # 运行详细回测
+        best_strategy.backtest(
+            start_date=self.fixed_params["start_date"],
+            end_date=self.fixed_params["end_date"],
+            verbose=True  # 启用详细打印
+        )
 
 if __name__ == "__main__":
     # 在创建优化器实例时指定回测区间
