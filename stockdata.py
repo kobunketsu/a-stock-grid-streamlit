@@ -27,6 +27,10 @@ class GridStrategyOptimizer:
         self.start_date = start_date
         self.end_date = end_date
         
+        # 验证价格范围
+        if not self._validate_price_range(price_range):
+            raise ValueError(f"无效的价格范围: {price_range}")
+        
         # 获取ETF基金名称和初始价格
         try:
             # 获取所有ETF基金列表
@@ -107,6 +111,36 @@ class GridStrategyOptimizer:
 
         self.progress_window = None  # 添加progress_window属性
 
+    def _validate_price_range(self, price_range: tuple) -> bool:
+        """
+        验证价格范围是否有效
+        @param price_range: (最小价格, 最大价格)的元组
+        @return: 价格范围是否有效
+        """
+        try:
+            min_price, max_price = price_range
+            
+            # 检查是否为数字
+            if not (isinstance(min_price, (int, float)) and isinstance(max_price, (int, float))):
+                print(f"价格范围必须是数字: {price_range}")
+                return False
+            
+            # 检查是否为正数
+            if min_price <= 0 or max_price <= 0:
+                print(f"价格必须为正数: {price_range}")
+                return False
+            
+            # 检查最小值是否小于最大值
+            if min_price >= max_price:
+                print(f"最小价格必须小于最大价格: {price_range}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"验证价格范围时发生错误: {e}")
+            return False
+
     def _calculate_ma_price(self, ma_period: int) -> Optional[float]:
         """
         计算开始时间的均线价格
@@ -171,8 +205,12 @@ class GridStrategyOptimizer:
             new_range = (default_range[0], ma_price)
             print(f"价格在均线下方，设置最大价格为均线价格: {ma_price:.3f}")
             
-        self.fixed_params["price_range"] = new_range
-        print(f"更新后的价格范围: {new_range}")
+        # 验证新的价格范围
+        if self._validate_price_range(new_range):
+            self.fixed_params["price_range"] = new_range
+            print(f"更新后的价格范围: {new_range}")
+        else:
+            print(f"保持原有价格范围: {default_range}")
 
     def run_backtest(self, params: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """
@@ -570,7 +608,7 @@ if __name__ == "__main__":
         ma_protection=True,
         initial_positions=50000,  # 初始持仓
         initial_cash=50000,  # 初始资金
-        price_range=(0.910, 1.10)  # 价格范围
+        price_range=(0.910, 0.920)  # 价格范围
     )
     n_trials = 100
     total_trials = int(n_trials * 1.5)  # 计算总试验次数
