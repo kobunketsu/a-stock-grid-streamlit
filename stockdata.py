@@ -3,7 +3,7 @@ import optuna
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from grid_strategy import GridStrategy  # 导入GridStrategy类
 import akshare as ak
 import tkinter as tk
@@ -15,7 +15,14 @@ class GridStrategyOptimizer:
     REBOUND_RATE_MAX_RATIO = 0.3  # 回调/反弹率相对于主要率的最大比例
     
     def __init__(self, start_date: datetime = datetime(2024, 11, 1), 
-                 end_date: datetime = datetime(2024, 12, 20)):
+                 end_date: datetime = datetime(2024, 12, 20),
+                 ma_period: int = None,  # 均线周期
+                 ma_protection: bool = False):  # 是否开启均线保护
+        
+        # 先初始化基本参数
+        self.start_date = start_date
+        self.end_date = end_date
+        
         # 获取ETF基金名称
         try:
             # 获取所有ETF基金列表
@@ -24,19 +31,25 @@ class GridStrategyOptimizer:
             etf_name = etf_df[etf_df['代码'] == '560610']['名称'].values[0]
         except Exception as e:
             print(f"获取ETF名称失败: {e}")
-            etf_name = "未知ETF"  # 如果获取失败则使用默认名称
-        
-        # 固定参数
+            etf_name = "未知ETF"
+            
+        # 先初始化固定参数（使用默认价格范围）
         self.fixed_params = {
             "symbol": "560610",
-            "symbol_name": etf_name,  # 使用获取到的ETF名称
+            "symbol_name": etf_name,
             "base_price": 0.960,
-            "price_range": (0.910, 1.010),
+            "price_range": (0.910, 1.010),  # 默认价格范围
             "initial_positions": 50000,
             "initial_cash": 50000,
             "start_date": start_date,
             "end_date": end_date
         }
+        
+        # 如果开启均线保护且提供了均线周期，则更新价格范围
+        if ma_protection and ma_period:
+            ma_price = self._calculate_ma_price(ma_period)
+            if ma_price:
+                self._update_price_range_with_ma(ma_price)
         
         # 计算最大可交易股数
         max_shares = int(self.fixed_params["initial_cash"] / self.fixed_params["base_price"])
@@ -71,6 +84,73 @@ class GridStrategyOptimizer:
         }
 
         self.progress_window = None  # 添加progress_window属性
+
+    def _calculate_ma_price(self, ma_period: int) -> Optional[float]:
+        """
+        计算开始时间的均线价格
+        @param ma_period: 均线周期
+        @return: 计算得到的均线价格，失败时返回None
+        """
+        try:
+            # 获取历史数据，考虑预留更多数据以计算均线
+            start_date_str = (self.start_date - timedelta(days=ma_period*2))\
+                .strftime('%Y%m%d')
+            end_date_str = self.start_date.strftime('%Y%m%d')  # 只需要计算到开始日期
+            
+            # 获取历史数据
+            df = ak.fund_etf_hist_em(
+                symbol=self.fixed_params["symbol"],
+                start_date=start_date_str,
+                end_date=end_date_str
+            )
+            
+            # 确保日期列为索引且按时间升序排列
+            df['日期'] = pd.to_datetime(df['日期'])
+            df = df.set_index('日期').sort_index()
+            
+            # 计算移动平均线
+            df['MA'] = df['收盘'].rolling(window=ma_period).mean()
+            
+            # 获取开始日期的收盘价和均线价格
+            start_date_data = df.loc[df.index <= self.start_date].iloc[-1]
+            close_price = start_date_data['收盘']
+            ma_price = start_date_data['MA']
+            
+            if np.isnan(ma_price):
+                print(f"计算均线价格结果为 NaN，使用默认价格范围")
+                return None
+                
+            print(f"开始日期 {self.start_date.strftime('%Y-%m-%d')} 的价格情况:")
+            print(f"收盘价: {close_price:.3f}")
+            print(f"{ma_period}日均线: {ma_price:.3f}")
+            return (close_price, ma_price)
+            
+        except Exception as e:
+            print(f"计算均线价格时发生错误: {e}")
+            return None
+
+    def _update_price_range_with_ma(self, price_data: Tuple[float, float]) -> None:
+        """
+        根据价格和均线的关系更新价格范围
+        @param price_data: (收盘价, 均线价格)的元组
+        """
+        if not price_data:
+            return
+            
+        close_price, ma_price = price_data
+        default_range = self.fixed_params["price_range"]
+        
+        if close_price > ma_price:
+            # 价格在均线上方，将均线价格设为最小值
+            new_range = (ma_price, default_range[1])
+            print(f"价格在均线上方，设置最小价格为均线价格: {ma_price:.3f}")
+        else:
+            # 价格在均线下方，将均线价格设为最大值
+            new_range = (default_range[0], ma_price)
+            print(f"价格在均线下方，设置最大价格为均线价格: {ma_price:.3f}")
+            
+        self.fixed_params["price_range"] = new_range
+        print(f"更新后的价格范围: {new_range}")
 
     def run_backtest(self, params: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """
@@ -198,50 +278,76 @@ class GridStrategyOptimizer:
         """
         分阶段执行参数优化
         """
+        total_trials = n_trials * 1.5  # 总试验次数（包括两个阶段）
+        current_trial = 0
+        self.optimization_running = True  # 添加运行状态标志
+
         def callback(study, trial):
-            if self.progress_window:  # 添加检查
-                self.progress_window.update_progress(trial.number)
+            if self.progress_window and self.optimization_running:
+                try:
+                    nonlocal current_trial
+                    current_trial += 1
+                    # 计算总体进度
+                    self.progress_window.update_progress(current_trial)
+                except Exception as e:
+                    # 如果更新进度条失败，说明窗口已关闭
+                    self.optimization_running = False
+                    print(f"进度更新已停止: {e}")
         
-        # 第一阶段：粗略搜索
-        study = optuna.create_study(
-            study_name="grid_strategy_optimization_phase1",
-            direction="minimize",
-            sampler=optuna.samplers.TPESampler(
-                seed=42,
-                n_startup_trials=100,
-                multivariate=True
+        try:
+            # 第一阶段：粗略搜索
+            study = optuna.create_study(
+                study_name="grid_strategy_optimization_phase1",
+                direction="minimize",
+                sampler=optuna.samplers.TPESampler(
+                    seed=42,
+                    n_startup_trials=100,
+                    multivariate=True
+                )
             )
-        )
-        
-        # 第一阶段优化
-        study.optimize(self.objective, n_trials=n_trials, callbacks=[callback])
-        
-        # 获取第一阶段最佳参数周围的范围
-        best_params = study.best_params
-        refined_ranges = self._get_refined_ranges(best_params)
-        
-        # 第二阶段：精细搜索
-        study_refined = optuna.create_study(
-            study_name="grid_strategy_optimization_phase2",
-            direction="minimize",
-            sampler=optuna.samplers.TPESampler(
-                seed=43,
-                n_startup_trials=50,
-                multivariate=True
+            
+            # 第一阶段优化
+            study.optimize(self.objective, n_trials=n_trials, callbacks=[callback])
+            
+            if not self.optimization_running:
+                return None  # 如果优化被中断，提前返回
+            
+            # 获取第一阶段最佳参数周围的范围
+            best_params = study.best_params
+            refined_ranges = self._get_refined_ranges(best_params)
+            
+            # 第二阶段：精细搜索
+            study_refined = optuna.create_study(
+                study_name="grid_strategy_optimization_phase2",
+                direction="minimize",
+                sampler=optuna.samplers.TPESampler(
+                    seed=43,
+                    n_startup_trials=50,
+                    multivariate=True
+                )
             )
-        )
-        
-        # 第二阶段优化
-        study_refined.optimize(
-            lambda trial: self._refined_objective(trial, refined_ranges), 
-            n_trials=n_trials//2,
-            callbacks=[callback]
-        )
-        
-        # 关闭进度窗口
-        self.progress_window.close()
-        
-        return self._combine_results(study, study_refined)
+            
+            # 第二阶段优化
+            study_refined.optimize(
+                lambda trial: self._refined_objective(trial, refined_ranges), 
+                n_trials=n_trials//2,
+                callbacks=[callback]
+            )
+            
+            # 只在优化仍在运行时更新最终进度
+            if self.optimization_running and self.progress_window:
+                try:
+                    self.progress_window.update_progress(total_trials)
+                except Exception:
+                    pass
+            
+            return self._combine_results(study, study_refined)
+            
+        except Exception as e:
+            print(f"优化过程发生错误: {e}")
+            return None
+        finally:
+            self.optimization_running = False
 
     def _get_refined_ranges(self, best_params):
         """
@@ -433,39 +539,49 @@ class GridStrategyOptimizer:
         )
 
 if __name__ == "__main__":
-    # 在创建优化器实例时指定回测区间
+    # 在创建优化器实例时指定回测区间和不同的均线周期
     optimizer = GridStrategyOptimizer(
-        start_date=datetime(2024, 10, 15),
-        end_date=datetime(2024, 12, 20)
+        start_date=datetime(2024, 11, 11),
+        end_date=datetime(2024, 12, 20),
+        ma_period=20,
+        ma_protection=True
     )
+    n_trials = 100
+    total_trials = int(n_trials * 1.5)  # 计算总试验次数
     
-    # 创建进度窗口
-    progress_window = ProgressWindow(2000 * 1.5)  # 1.5倍考虑两个阶段
+    # 创建进度窗口，使用总试验次数
+    progress_window = ProgressWindow(total_trials)
     
     # 创建一个新线程运行优化过程
     def run_optimization():
-        results = optimizer.optimize(n_trials=2000)
-        optimizer.print_results(results, top_n=5)
-        
-        # 保存优化过程中的所有试验结果
-        trials_df = pd.DataFrame([
-            {
-                "number": trial.number,
-                "profit_rate": -trial.value,
-                "trade_count": trial.user_attrs["trade_count"],
-                "failed_trades": trial.user_attrs["failed_trades"],
-                "start_date": optimizer.fixed_params["start_date"].strftime('%Y-%m-%d'),
-                "end_date": optimizer.fixed_params["end_date"].strftime('%Y-%m-%d'),
-                **trial.params
-            }
-            for trial in results["study"].trials
-        ])
-        
-        # 保存到CSV文件
-        trials_df.to_csv("optimization_trials.csv", index=False)
-        
-        # 优化完成后关闭进度窗口
-        progress_window.root.after(100, progress_window.close)
+        try:
+            results = optimizer.optimize(n_trials=n_trials)
+            if results:  # 只在优化成功完成时处理结果
+                optimizer.print_results(results, top_n=5)
+                
+                # 保存优化过程中的所有试验结果
+                trials_df = pd.DataFrame([
+                    {
+                        "number": trial.number,
+                        "profit_rate": -trial.value,
+                        "trade_count": trial.user_attrs["trade_count"],
+                        "failed_trades": trial.user_attrs["failed_trades"],
+                        "start_date": optimizer.fixed_params["start_date"].strftime('%Y-%m-%d'),
+                        "end_date": optimizer.fixed_params["end_date"].strftime('%Y-%m-%d'),
+                        **trial.params
+                    }
+                    for trial in results["study"].trials
+                ])
+                
+                # 保存到CSV文件
+                trials_df.to_csv("optimization_trials.csv", index=False)
+        finally:
+            # 确保在完成或发生错误时都能安全地关闭窗口
+            if progress_window and progress_window.root:
+                try:
+                    progress_window.root.after(100, progress_window.close)
+                except Exception:
+                    pass  # 忽略关闭窗口时的错误
     
     # 在主线程中创建窗口
     progress_window.create_window()
