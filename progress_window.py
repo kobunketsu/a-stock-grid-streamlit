@@ -33,11 +33,12 @@ class ProgressWindow:
         self.price_range_min_var = None
         self.price_range_max_var = None
         self.n_trials_var = None
+        self.top_n_var = None
         
     def create_window(self):
         self.root = tk.Tk()
         self.root.title("网格策略优化器")
-        self.root.geometry("900x600")
+        self.root.geometry("1200x800")
         
         # 在创建窗口后初始化变量
         self.symbol_var = tk.StringVar(self.root, value="159300")
@@ -48,52 +49,90 @@ class ProgressWindow:
         self.initial_positions_var = tk.StringVar(self.root, value="0")
         self.initial_cash_var = tk.StringVar(self.root, value="100000")
         self.min_buy_times_var = tk.StringVar(self.root, value="2")
-        self.price_range_min_var = tk.StringVar(self.root, value="3.9")
-        self.price_range_max_var = tk.StringVar(self.root, value="4.3")
-        self.n_trials_var = tk.StringVar(self.root, value="100")
+        self.price_range_min_var = tk.StringVar(value="3.9")
+        self.price_range_max_var = tk.StringVar(value="4.3")
+        self.n_trials_var = tk.StringVar(value="100")
+        self.top_n_var = tk.StringVar(value="5")
         
-        # 设置窗口在屏幕中央
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        x = (screen_width - 900) // 2
-        y = (screen_height - 600) // 2
-        self.root.geometry(f"900x600+{x}+{y}")
+        # 创建主布局框架
+        main_frame = ttk.Frame(self.root)
+        main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # 创建左侧参数面板
-        params_frame = ttk.LabelFrame(self.root, text="参数设置", padding=10)
-        params_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
+        # 左侧参数面板
+        params_frame = ttk.LabelFrame(main_frame, text="参数设置", padding=10)
+        params_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         
-        # 创建参数输入控件
+        # 参数输入控件
+        self.create_parameter_inputs(params_frame)
+        
+        # 中间结果面板
+        results_frame = ttk.LabelFrame(main_frame, text="优化结果", padding=10)
+        results_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        
+        # 创建参数组合列表的画布和滚动条
+        self.results_canvas = tk.Canvas(results_frame)
+        scrollbar = ttk.Scrollbar(results_frame, orient=tk.VERTICAL, command=self.results_canvas.yview)
+        self.results_canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # 创建参数组合的容器
+        self.params_container = ttk.Frame(self.results_canvas)
+        self.results_canvas.create_window((0, 0), window=self.params_container, anchor=tk.NW)
+        
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.results_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 右侧交易详情面板
+        details_frame = ttk.LabelFrame(main_frame, text="交易详情", padding=10)
+        details_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # 创建交易详情区域
+        self.create_trade_details_area(details_frame)
+        
+        # 底部进度面板
+        progress_frame = ttk.LabelFrame(self.root, text="优化进度", padding=10)
+        progress_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
+        
+        # 创建进度相关控件
+        self.create_progress_widgets(progress_frame)
+        
+        # 设置窗口始终置顶
+        self.root.attributes('-topmost', True)
+        
+        # 绑定窗口关闭事件
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+        
+    def create_parameter_inputs(self, parent):
+        """创建参数输入控件"""
         # ETF代码
-        ttk.Label(params_frame, text="ETF代码:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.symbol_var, width=20).grid(row=0, column=1, pady=2)
+        ttk.Label(parent, text="ETF代码:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.symbol_var, width=20).grid(row=0, column=1, pady=2)
         
         # 日期范围
-        ttk.Label(params_frame, text="开始日期:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.start_date_var, width=20).grid(row=1, column=1, pady=2)
+        ttk.Label(parent, text="开始日期:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.start_date_var, width=20).grid(row=1, column=1, pady=2)
         
-        ttk.Label(params_frame, text="结束日期:").grid(row=2, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.end_date_var, width=20).grid(row=2, column=1, pady=2)
+        ttk.Label(parent, text="结束日期:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.end_date_var, width=20).grid(row=2, column=1, pady=2)
         
         # 均线设置
-        ttk.Label(params_frame, text="均线周期:").grid(row=3, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.ma_period_var, width=20).grid(row=3, column=1, pady=2)
+        ttk.Label(parent, text="均线周期:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.ma_period_var, width=20).grid(row=3, column=1, pady=2)
         
-        ttk.Checkbutton(params_frame, text="启用均线保护", variable=self.ma_protection_var).grid(
+        ttk.Checkbutton(parent, text="启用均线保护", variable=self.ma_protection_var).grid(
             row=4, column=0, columnspan=2, sticky=tk.W, pady=2)
         
         # 资金设置
-        ttk.Label(params_frame, text="初始持仓:").grid(row=5, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.initial_positions_var, width=20).grid(row=5, column=1, pady=2)
+        ttk.Label(parent, text="初始持仓:").grid(row=5, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.initial_positions_var, width=20).grid(row=5, column=1, pady=2)
         
-        ttk.Label(params_frame, text="初始资金:").grid(row=6, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.initial_cash_var, width=20).grid(row=6, column=1, pady=2)
+        ttk.Label(parent, text="初始资金:").grid(row=6, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.initial_cash_var, width=20).grid(row=6, column=1, pady=2)
         
-        ttk.Label(params_frame, text="最少买入次数:").grid(row=7, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.min_buy_times_var, width=20).grid(row=7, column=1, pady=2)
+        ttk.Label(parent, text="最少买入次数:").grid(row=7, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.min_buy_times_var, width=20).grid(row=7, column=1, pady=2)
         
         # 价格范围
-        price_range_frame = ttk.LabelFrame(params_frame, text="价格范围", padding=5)
+        price_range_frame = ttk.LabelFrame(parent, text="价格范围", padding=5)
         price_range_frame.grid(row=8, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
         ttk.Label(price_range_frame, text="最小值:").grid(row=0, column=0, sticky=tk.W, pady=2)
@@ -102,82 +141,34 @@ class ProgressWindow:
         ttk.Label(price_range_frame, text="最大值:").grid(row=0, column=2, sticky=tk.W, pady=2, padx=(10,0))
         ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=8).grid(row=0, column=3, pady=2)
         
-        # 优化次数
-        ttk.Label(params_frame, text="优化次数:").grid(row=9, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(params_frame, textvariable=self.n_trials_var, width=20).grid(row=9, column=1, pady=2)
+        # 优化设置
+        ttk.Label(parent, text="优化次数:").grid(row=9, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.n_trials_var, width=20).grid(row=9, column=1, pady=2)
+        
+        ttk.Label(parent, text="显示前N个结果:").grid(row=10, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(parent, textvariable=self.top_n_var, width=20).grid(row=10, column=1, pady=2)
         
         # 添加开始优化按钮
-        ttk.Button(params_frame, text="开始优化", command=self.start_optimization).grid(
-            row=10, column=0, columnspan=2, pady=10)
-        
-        # 创建右侧进度和结果面板
-        right_frame = ttk.Frame(self.root)
-        right_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.BOTH, expand=True)
-        
-        # 进度相关控件
-        progress_frame = ttk.LabelFrame(right_frame, text="优化进度", padding=10)
-        progress_frame.pack(fill=tk.X, pady=(0, 10))
-        
-        self.label = ttk.Label(progress_frame, text="等待开始...", font=('Arial', 10))
+        ttk.Button(parent, text="开始优化", command=self.start_optimization).grid(
+            row=11, column=0, columnspan=2, pady=10)
+    
+    def create_progress_widgets(self, parent):
+        """创建进度相关控件"""
+        self.label = ttk.Label(parent, text="等待开始...", font=('Arial', 10))
         self.label.pack(pady=5)
         
-        self.progress = ttk.Progressbar(progress_frame, orient="horizontal", length=300, mode="determinate")
+        self.progress = ttk.Progressbar(parent, orient="horizontal", length=300, mode="determinate")
         self.progress.pack(pady=5)
         
-        self.percent_label = ttk.Label(progress_frame, text="0%", font=('Arial', 10))
+        self.percent_label = ttk.Label(parent, text="0%", font=('Arial', 10))
         self.percent_label.pack(pady=2)
         
-        self.time_label = ttk.Label(progress_frame, text="耗时: 0:00:00", font=('Arial', 10))
+        self.time_label = ttk.Label(parent, text="耗时: 0:00:00", font=('Arial', 10))
         self.time_label.pack(pady=2)
         
-        self.eta_label = ttk.Label(progress_frame, text="预计剩余: --:--:--", font=('Arial', 10))
+        self.eta_label = ttk.Label(parent, text="预计剩余: --:--:--", font=('Arial', 10))
         self.eta_label.pack(pady=2)
-        
-        # 创建查看交易详情按钮
-        self.view_trades_btn = ttk.Button(progress_frame, text="查看交易详情", command=self.show_trade_details)
-        self.view_trades_btn.pack(pady=5)
-        self.view_trades_btn.state(['disabled'])
-        
-        # 创建结果文本框
-        self.create_results_text_area(right_frame)
-        
-        # 设置窗口始终置顶
-        self.root.attributes('-topmost', True)
-        
-        # 绑定窗口关闭事件
-        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
-        
-    def create_results_text_area(self, parent):
-        """创建结果显示区域"""
-        # 创建搜索框和文本框
-        search_frame = ttk.Frame(parent)
-        search_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        self.search_count_label = ttk.Label(search_frame, text="")
-        self.search_count_label.pack(side=tk.LEFT, padx=5)
-        
-        # 绑定搜索相关事件
-        self.search_var.trace_add('write', lambda *args: self.search_text())
-        self.root.bind('<Command-f>', self.focus_search)
-        self.root.bind('<Control-f>', self.focus_search)
-        self.search_entry.bind('<Return>', lambda e: self.search_text('down'))
-        self.search_entry.bind('<Shift-Return>', lambda e: self.search_text('up'))
-        
-        # 创建文本框
-        self.trade_details = scrolledtext.ScrolledText(
-            parent,
-            wrap=tk.WORD,
-            width=50,
-            height=25,
-            font=('Courier', 11)
-        )
-        self.trade_details.pack(fill=tk.BOTH, expand=True)
-        self.trade_details.config(state='disabled')
-        
+    
     def start_optimization(self):
         """开始优化按钮的回调函数"""
         try:
@@ -207,6 +198,15 @@ class ProgressWindow:
             self.start_time = datetime.now()
             self.label["text"] = "正在优化参数..."
             
+            # 清空之前的结果显示
+            for widget in self.params_container.winfo_children():
+                widget.destroy()
+            
+            # 清空交易详情
+            self.trade_details.config(state='normal')
+            self.trade_details.delete('1.0', tk.END)
+            self.trade_details.config(state='disabled')
+            
             # 创建优化器实例
             from stockdata import GridStrategyOptimizer  # 避免循环导入
             optimizer = GridStrategyOptimizer(
@@ -226,13 +226,23 @@ class ProgressWindow:
             
             def run_optimization():
                 try:
+                    # 运行优化
                     results = optimizer.optimize(n_trials=n_trials)
+                    
                     if results and not self.is_closed:
                         # 在主线程中更新UI
-                        self.root.after(0, lambda: optimizer.print_results(results))
+                        def update_ui():
+                            if not self.is_closed:
+                                self.label["text"] = "优化完成"
+                                # 显示优化结果
+                                self.display_optimization_results(results)
+                        
+                        self.root.after(0, update_ui)
+                        
                 except Exception as e:
                     if not self.is_closed:
                         self.root.after(0, lambda: messagebox.showerror("优化错误", str(e)))
+                        self.label["text"] = "优化失败"
             
             # 在新线程中运行优化
             self.optimization_thread = threading.Thread(target=run_optimization)
@@ -371,102 +381,60 @@ class ProgressWindow:
     
     def focus_search(self, event=None):
         """聚焦到搜索框"""
-        if self.search_entry:
-            self.search_entry.focus_set()
-            self.search_entry.select_range(0, tk.END)  # 选中所有文本
-            return 'break'  # 阻止事件继续传播
+        self.search_entry.focus_set()
+        return "break"
     
     def search_text(self, direction='down'):
-        """
-        搜索文本内容
-        @param direction: 搜索方向，'up' 向上搜索，'down' 向下搜索
-        """
-        # 获取搜索关键词
-        search_key = self.search_var.get()
-        if not search_key:
-            self.search_count_label.config(text="")  # 清空计数标签
+        """搜索文本"""
+        search_term = self.search_var.get()
+        if not search_term:
+            self.search_count_label.config(text="")
             return
         
-        # 启用文本框以进行搜索
-        self.trade_details.config(state='normal')
+        content = self.trade_details.get("1.0", tk.END)
+        matches = content.lower().count(search_term.lower())
+        self.search_count_label.config(text=f"找到 {matches} 个匹配")
         
-        # 移除之前的搜索标记
-        self.trade_details.tag_remove('search', '1.0', tk.END)
-        
-        # 获取文本内容
-        content = self.trade_details.get('1.0', tk.END)
-        
-        # 获取当前光标位置
-        current_pos = self.trade_details.index(tk.INSERT)
-        
-        # 将搜索关键词转换为小写以进行不区分大小写的搜索
-        content_lower = content.lower()
-        search_key_lower = search_key.lower()
-        
-        # 找出所有匹配位置
-        matches = []
-        start = 0
-        while True:
-            pos = content_lower.find(search_key_lower, start)
-            if pos == -1:
-                break
-            matches.append(pos)
-            start = pos + 1
-
-        if not matches:
-            self.search_count_label.config(text="未找到")
-            self.trade_details.config(state='disabled')
-            return
-        
-        # 获取当前光标位置对应的内容偏移量
-        current_offset = len(self.trade_details.get('1.0', current_pos)) - 1
-        
-        # 根据搜索方向找到下一个匹配位置
-        if direction == 'down':
-            next_pos = None
-            current_index = 0
-            for i, pos in enumerate(matches):
-                if pos > current_offset:
-                    next_pos = pos
-                    current_index = i
-                    break
-            # 如果没有找到更大的位置，则回到第一个匹配位置
-            if next_pos is None:
-                next_pos = matches[0]
-                current_index = 0
-        else:  # 向上搜索
-            next_pos = None
-            current_index = len(matches) - 1
-            for i, pos in reversed(list(enumerate(matches))):
-                if pos < current_offset:
-                    next_pos = pos
-                    current_index = i
-                    break
-            # 如果没有找到更小的位置，则跳到最后一个匹配位置
-            if next_pos is None:
-                next_pos = matches[-1]
-                current_index = len(matches) - 1
-        
-        # 更新搜索结果计数标签
-        self.search_count_label.config(text=f"{current_index + 1}/{len(matches)}")
-        
-        # 计算匹配位置的行号和列号
-        text_before = content[:next_pos]
-        line_count = text_before.count('\n') + 1
-        last_newline = text_before.rfind('\n')
-        col = next_pos - last_newline - 1 if last_newline != -1 else next_pos
-        
-        # 设置高亮和光标位置
-        start_pos = f"{line_count}.{col}"
-        end_pos = f"{line_count}.{col + len(search_key)}"
-        
-        self.trade_details.tag_add('search', start_pos, end_pos)
-        self.trade_details.tag_config('search', background='yellow', foreground='black')
-        self.trade_details.see(start_pos)
-        self.trade_details.mark_set(tk.INSERT, end_pos)
-        
-        # 恢复只读状态
-        self.trade_details.config(state='disabled')
+        if matches > 0:
+            # 获取当前光标位置
+            current_pos = self.trade_details.index(tk.INSERT)
+            
+            # 根据搜索方向设置开始位置
+            if direction == 'down':
+                start_pos = current_pos
+                search_direction = tk.SEL_FIRST
+            else:
+                start_pos = "1.0"
+                search_direction = tk.SEL_LAST
+            
+            # 清除现有选择
+            self.trade_details.tag_remove('sel', '1.0', tk.END)
+            
+            # 搜索文本
+            pos = self.trade_details.search(
+                search_term, 
+                start_pos, 
+                nocase=True, 
+                stopindex=tk.END if direction == 'down' else current_pos
+            )
+            
+            if pos:
+                # 选中找到的文本
+                line, char = pos.split('.')
+                end_pos = f"{line}.{int(char) + len(search_term)}"
+                self.trade_details.tag_add('sel', pos, end_pos)
+                self.trade_details.mark_set(tk.INSERT, search_direction)
+                self.trade_details.see(pos)
+            else:
+                # 如果没找到，从头/尾开始搜索
+                start = "1.0" if direction == 'down' else tk.END
+                pos = self.trade_details.search(search_term, start, nocase=True)
+                if pos:
+                    line, char = pos.split('.')
+                    end_pos = f"{line}.{int(char) + len(search_term)}"
+                    self.trade_details.tag_add('sel', pos, end_pos)
+                    self.trade_details.mark_set(tk.INSERT, search_direction)
+                    self.trade_details.see(pos)
     
     def scroll_to_end(self, event=None):
         """滚动到文本末尾"""
@@ -483,6 +451,111 @@ class ProgressWindow:
             # 将插入点移动到开始
             self.trade_details.mark_set(tk.INSERT, '1.0')
             return 'break'  # 阻止事件继续传播
+    
+    def show_strategy_details(self, strategy_params):
+        """显示特定参数组合的策略详情"""
+        # 清空现有内容
+        self.trade_details.config(state='normal')
+        self.trade_details.delete('1.0', tk.END)
+        
+        # 创建并运行策略
+        from grid_strategy import GridStrategy
+        strategy = GridStrategy(
+            symbol=self.symbol_var.get().strip(),
+            symbol_name="ETF"  # 可以从接口获取实际名称
+        )
+        
+        # 设置策略参数
+        for param, value in strategy_params.items():
+            setattr(strategy, param, value)
+        
+        # 运行回测
+        start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
+        end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
+        
+        # 捕获输出
+        output = io.StringIO()
+        with redirect_stdout(output):
+            strategy.backtest(start_date, end_date, verbose=True)
+        
+        # 显示结果
+        self.trade_details.insert(tk.END, output.getvalue())
+        self.trade_details.config(state='disabled')
+        self.trade_details.see('1.0')
+    
+    def display_optimization_results(self, results):
+        """显示优化结果"""
+        # 清空现有结果
+        for widget in self.params_container.winfo_children():
+            widget.destroy()
+        
+        # 获取前N个结果
+        top_n = int(self.top_n_var.get())
+        sorted_trials = results["sorted_trials"][:top_n]
+        
+        # 创建每个参数组合的显示块
+        for i, trial in enumerate(sorted_trials, 1):
+            frame = ttk.LabelFrame(self.params_container, text=f"第 {i} 名", padding=5)
+            frame.pack(fill=tk.X, pady=5)
+            
+            # 创建参数信息
+            info_frame = ttk.Frame(frame)
+            info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            
+            profit_rate = -trial.value
+            ttk.Label(info_frame, text=f"收益率: {profit_rate:.2f}%").pack(anchor=tk.W)
+            ttk.Label(info_frame, text=f"交易次数: {trial.user_attrs['trade_count']}").pack(anchor=tk.W)
+            
+            # 显示参数
+            params_text = "参数:\n"
+            for param, value in trial.params.items():
+                if param in ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']:
+                    params_text += f"  {param}: {value*100:.2f}%\n"
+                else:
+                    params_text += f"  {param}: {value}\n"
+            ttk.Label(info_frame, text=params_text).pack(anchor=tk.W)
+            
+            # 添加查看按钮
+            ttk.Button(frame, text="查看详情", 
+                      command=lambda p=trial.params: self.show_strategy_details(p)).pack(
+                          side=tk.RIGHT, padx=5)
+        
+        # 更新画布滚动区域
+        self.params_container.update_idletasks()
+        self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
+    
+    def create_trade_details_area(self, parent):
+        """创建交易详情显示区域"""
+        # 创建搜索框架
+        search_frame = ttk.Frame(parent)
+        search_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Label(search_frame, text="搜索:").pack(side=tk.LEFT)
+        
+        self.search_var = tk.StringVar()
+        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.search_count_label = ttk.Label(search_frame, text="")
+        self.search_count_label.pack(side=tk.LEFT, padx=5)
+        
+        # 创建文本框
+        self.trade_details = scrolledtext.ScrolledText(
+            parent,
+            wrap=tk.WORD,
+            width=50,
+            height=25,
+            font=('Courier', 11)
+        )
+        self.trade_details.pack(fill=tk.BOTH, expand=True)
+        self.trade_details.config(state='disabled')
+        
+        # 绑定搜索相关事件
+        self.search_var.trace_add('write', lambda *args: self.search_text())
+        self.root.bind('<Command-f>', self.focus_search)
+        self.root.bind('<Control-f>', self.focus_search)
+        self.search_entry.bind('<Return>', lambda e: self.search_text('down'))
+        self.search_entry.bind('<Shift-Return>', lambda e: self.search_text('up'))
 
 # 不要在模块级别创建实例
 def create_progress_window():

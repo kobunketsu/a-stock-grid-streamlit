@@ -416,7 +416,10 @@ class GridStrategyOptimizer:
                 except Exception:
                     pass
             
-            return self._combine_results(study, study_refined)
+            return {
+                "study": study,
+                "sorted_trials": sorted(study.trials, key=lambda t: t.value)  # 按收益率排序
+            }
             
         except Exception as e:
             print(f"优化过程发生错误: {e}")
