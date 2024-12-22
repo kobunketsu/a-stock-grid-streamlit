@@ -1,4 +1,4 @@
-from progress_window import ProgressWindow
+from progress_window import create_progress_window
 import optuna
 from datetime import datetime, timedelta
 import numpy as np
@@ -23,6 +23,7 @@ class GridStrategyOptimizer:
                  ma_protection: bool = False,  # 是否开启均线保护
                  initial_positions: int = 50000,  # 初始持仓
                  initial_cash: int = 50000,  # 初始资金
+                 min_buy_times: int = 10,  # 最少买入次数
                  price_range: tuple = (0.910, 1.010)):  # 价格范围
         
         # 先初始化基本参数
@@ -80,7 +81,19 @@ class GridStrategyOptimizer:
                 self._update_price_range_with_ma(ma_price)
         
         # 计算最大可交易股数
-        max_shares = int(self.fixed_params["initial_cash"] / self.fixed_params["base_price"])
+        base_price = self.fixed_params["base_price"]
+        
+        # 计算最大可交易股数，考虑最少买入次数
+        # 确保有足够的资金进行最少次数的买入
+        max_shares_by_cash = int(self.fixed_params["initial_cash"] / base_price)
+        max_shares_by_times = int(self.fixed_params["initial_cash"] / 
+                                (min_buy_times * base_price))
+        
+        # 使用较小的值作为最大交易股数
+        max_shares = min(max_shares_by_cash, max_shares_by_times)
+        print(f"基于初始资金计算的最大股数: {max_shares_by_cash}")
+        print(f"基于最少买入次数计算的最大股数: {max_shares_by_times}")
+        print(f"最终使用的最大交易股数: {max_shares}")
         
         # 可调参数的范围定义
         self.param_ranges = {
@@ -201,7 +214,7 @@ class GridStrategyOptimizer:
         if close_price > ma_price:
             # 价格在均线上方，将均线价格设为最小值
             new_range = (ma_price, default_range[1])
-            print(f"价格在均线上方，设置最小���格为均线价格: {ma_price:.3f}")
+            print(f"价格在均线上方，设置最小价格为均线价格: {ma_price:.3f}")
         else:
             # 价格在均线下方，将均线价格设为最大值
             new_range = (default_range[0], ma_price)
@@ -534,6 +547,35 @@ class GridStrategyOptimizer:
             print(f"\n回测区间: {self.fixed_params['start_date'].strftime('%Y-%m-%d')} 至 "
                   f"{self.fixed_params['end_date'].strftime('%Y-%m-%d')}")
             
+            print("\n=== 使用最佳参数运行详细回测 ===")
+            # 使用最佳参数运行详细回测
+            best_strategy = GridStrategy(
+                symbol=self.fixed_params["symbol"],
+                symbol_name=self.fixed_params["symbol_name"]
+            )
+            
+            # 设置固定参数
+            best_strategy.base_price = self.fixed_params["base_price"]
+            best_strategy.price_range = self.fixed_params["price_range"]
+            best_strategy.initial_positions = self.fixed_params["initial_positions"]
+            best_strategy.positions = best_strategy.initial_positions
+            best_strategy.initial_cash = self.fixed_params["initial_cash"]
+            best_strategy.cash = best_strategy.initial_cash
+            
+            # 设置最佳参数
+            best_strategy.up_sell_rate = results["best_params"]["up_sell_rate"]
+            best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
+            best_strategy.up_callback_rate = results["best_params"]["up_callback_rate"]
+            best_strategy.down_rebound_rate = results["best_params"]["down_rebound_rate"]
+            best_strategy.shares_per_trade = results["best_params"]["shares_per_trade"]
+            
+            # 运行详细回测
+            best_strategy.backtest(
+                start_date=self.fixed_params["start_date"],
+                end_date=self.fixed_params["end_date"],
+                verbose=True  # 启用详细打印
+            )
+            
             # 获取所有试验结果
             trials = results["study"].trials
             
@@ -571,35 +613,6 @@ class GridStrategyOptimizer:
                 for reason, count in failed_trades.items():
                     if count > 0:
                         print(f"  {reason}: {count}次")
-            
-            print("\n=== 使用最佳参数运行详细回测 ===")
-            # 使用最佳参数运行详细回测
-            best_strategy = GridStrategy(
-                symbol=self.fixed_params["symbol"],
-                symbol_name=self.fixed_params["symbol_name"]
-            )
-            
-            # 设置固定参数
-            best_strategy.base_price = self.fixed_params["base_price"]
-            best_strategy.price_range = self.fixed_params["price_range"]
-            best_strategy.initial_positions = self.fixed_params["initial_positions"]
-            best_strategy.positions = best_strategy.initial_positions
-            best_strategy.initial_cash = self.fixed_params["initial_cash"]
-            best_strategy.cash = best_strategy.initial_cash
-            
-            # 设置最佳参数
-            best_strategy.up_sell_rate = results["best_params"]["up_sell_rate"]
-            best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
-            best_strategy.up_callback_rate = results["best_params"]["up_callback_rate"]
-            best_strategy.down_rebound_rate = results["best_params"]["down_rebound_rate"]
-            best_strategy.shares_per_trade = results["best_params"]["shares_per_trade"]
-            
-            # 运行详细回测
-            best_strategy.backtest(
-                start_date=self.fixed_params["start_date"],
-                end_date=self.fixed_params["end_date"],
-                verbose=True  # 启用详细打印
-            )
         
         # 获取捕获的输出
         captured_output = output.getvalue()
@@ -615,68 +628,5 @@ class GridStrategyOptimizer:
 
 
 if __name__ == "__main__":
-    # 在创建优化器实例时指定所有参数
-    optimizer = GridStrategyOptimizer(
-        symbol="159300",  # ETF代码
-        start_date=datetime(2024, 10, 10),
-        end_date=datetime(2024, 12, 20),
-        ma_period=55,
-        ma_protection=True,
-        initial_positions=0,  # 初始持仓
-        initial_cash=100000,  # 初始资金
-        price_range=(3.9, 4.3)  # 价格范围
-    )
-    n_trials = 100
-    total_trials = int(n_trials * 1.5)  # 计算总试验次数
-    
-    # 创建进度窗口，使用��试验次数
-    progress_window = ProgressWindow(total_trials)
-    
-    # 创建一个新线程运行优化过程
-    def run_optimization():
-        try:
-            results = optimizer.optimize(n_trials=n_trials)
-            if results:  # 只在优化成功完成时处理结果
-                optimizer.print_results(results, top_n=5)
-                
-                # 保存优化过程中的所有试验结果
-                trials_df = pd.DataFrame([
-                    {
-                        "number": trial.number,
-                        "profit_rate": -trial.value,
-                        "trade_count": trial.user_attrs["trade_count"],
-                        "failed_trades": trial.user_attrs["failed_trades"],
-                        "start_date": optimizer.fixed_params["start_date"].strftime('%Y-%m-%d'),
-                        "end_date": optimizer.fixed_params["end_date"].strftime('%Y-%m-%d'),
-                        **trial.params
-                    }
-                    for trial in results["study"].trials
-                ])
-                
-                # 保存到CSV文件
-                trials_df.to_csv("optimization_trials.csv", index=False)
-                
-                # 使用 after 方法在主线程中更新UI
-                if progress_window and progress_window.root:
-                    progress_window.root.after(0, lambda: progress_window.update_label("优化参数完毕！"))
-        except Exception as e:
-            # 发生错误时更新UI显示错误信息
-            if progress_window and progress_window.root:
-                progress_window.root.after(0, lambda: progress_window.update_label(f"优化失败: {str(e)}"))
-        finally:
-            # 确保进度条显示100%
-            if progress_window and progress_window.root:
-                progress_window.root.after(0, lambda: progress_window.update_progress(total_trials))
-    
-    # 在主线程中创建窗口
-    progress_window.create_window()
-    
-    # 将进度窗口传递给优化器
-    optimizer.progress_window = progress_window
-    
-    # 启动优化线程
-    optimization_thread = threading.Thread(target=run_optimization)
-    optimization_thread.start()
-    
-    # 主线程进入tkinter主循环
+    progress_window = create_progress_window()
     progress_window.root.mainloop()

@@ -1,9 +1,10 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 from datetime import datetime
 import sys
 import io
 from contextlib import redirect_stdout
+import threading
 
 class ProgressWindow:
     def __init__(self, total_trials):
@@ -17,120 +18,128 @@ class ProgressWindow:
         self.eta_label = None
         self.start_time = None
         self.is_closed = False
-        self.trade_details = None  # 用于存储交易详情的文本控件
-        self.captured_output = []  # 用于存储捕获的输出
+        self.trade_details = None
+        self.captured_output = []
+        
+        # 将变量声明为None，稍后在create_window中初始化
+        self.symbol_var = None
+        self.start_date_var = None
+        self.end_date_var = None
+        self.ma_period_var = None
+        self.ma_protection_var = None
+        self.initial_positions_var = None
+        self.initial_cash_var = None
+        self.min_buy_times_var = None
+        self.price_range_min_var = None
+        self.price_range_max_var = None
+        self.n_trials_var = None
         
     def create_window(self):
-        """在主线程中创建窗口"""
         self.root = tk.Tk()
-        self.root.title("优化进度")
-        self.root.geometry("600x500")  # 增加窗口大小以适应新控件
+        self.root.title("网格策略优化器")
+        self.root.geometry("900x600")
+        
+        # 在创建窗口后初始化变量
+        self.symbol_var = tk.StringVar(self.root, value="159300")
+        self.start_date_var = tk.StringVar(self.root, value="2024-10-10")
+        self.end_date_var = tk.StringVar(self.root, value="2024-12-20")
+        self.ma_period_var = tk.StringVar(self.root, value="55")
+        self.ma_protection_var = tk.BooleanVar(self.root, value=True)
+        self.initial_positions_var = tk.StringVar(self.root, value="0")
+        self.initial_cash_var = tk.StringVar(self.root, value="100000")
+        self.min_buy_times_var = tk.StringVar(self.root, value="2")
+        self.price_range_min_var = tk.StringVar(self.root, value="3.9")
+        self.price_range_max_var = tk.StringVar(self.root, value="4.3")
+        self.n_trials_var = tk.StringVar(self.root, value="100")
         
         # 设置窗口在屏幕中央
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        x = (screen_width - 600) // 2
-        y = (screen_height - 500) // 2
-        self.root.geometry(f"600x500+{x}+{y}")
+        x = (screen_width - 900) // 2
+        y = (screen_height - 600) // 2
+        self.root.geometry(f"900x600+{x}+{y}")
         
-        # 创建左侧进度面板
-        progress_frame = ttk.Frame(self.root)
-        progress_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
+        # 创建左侧参数面板
+        params_frame = ttk.LabelFrame(self.root, text="参数设置", padding=10)
+        params_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.Y)
         
-        # 进度相关控件放在左侧
-        self.label = ttk.Label(progress_frame, text="正在优化参数...", font=('Arial', 10))
-        self.label.pack(pady=10)
+        # 创建参数输入控件
+        # ETF代码
+        ttk.Label(params_frame, text="ETF代码:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.symbol_var, width=20).grid(row=0, column=1, pady=2)
         
-        self.progress = ttk.Progressbar(
-            progress_frame, 
-            orient="horizontal",
-            length=200, 
-            mode="determinate"
-        )
-        self.progress.pack(pady=10)
+        # 日期范围
+        ttk.Label(params_frame, text="开始日期:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.start_date_var, width=20).grid(row=1, column=1, pady=2)
+        
+        ttk.Label(params_frame, text="结束日期:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.end_date_var, width=20).grid(row=2, column=1, pady=2)
+        
+        # 均线设置
+        ttk.Label(params_frame, text="均线周期:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.ma_period_var, width=20).grid(row=3, column=1, pady=2)
+        
+        ttk.Checkbutton(params_frame, text="启用均线保护", variable=self.ma_protection_var).grid(
+            row=4, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
+        # 资金设置
+        ttk.Label(params_frame, text="初始持仓:").grid(row=5, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.initial_positions_var, width=20).grid(row=5, column=1, pady=2)
+        
+        ttk.Label(params_frame, text="初始资金:").grid(row=6, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.initial_cash_var, width=20).grid(row=6, column=1, pady=2)
+        
+        ttk.Label(params_frame, text="最少买入次数:").grid(row=7, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.min_buy_times_var, width=20).grid(row=7, column=1, pady=2)
+        
+        # 价格范围
+        price_range_frame = ttk.LabelFrame(params_frame, text="价格范围", padding=5)
+        price_range_frame.grid(row=8, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        
+        ttk.Label(price_range_frame, text="最小值:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(price_range_frame, textvariable=self.price_range_min_var, width=8).grid(row=0, column=1, pady=2)
+        
+        ttk.Label(price_range_frame, text="最大值:").grid(row=0, column=2, sticky=tk.W, pady=2, padx=(10,0))
+        ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=8).grid(row=0, column=3, pady=2)
+        
+        # 优化次数
+        ttk.Label(params_frame, text="优化次数:").grid(row=9, column=0, sticky=tk.W, pady=2)
+        ttk.Entry(params_frame, textvariable=self.n_trials_var, width=20).grid(row=9, column=1, pady=2)
+        
+        # 添加开始优化按钮
+        ttk.Button(params_frame, text="开始优化", command=self.start_optimization).grid(
+            row=10, column=0, columnspan=2, pady=10)
+        
+        # 创建右侧进度和结果面板
+        right_frame = ttk.Frame(self.root)
+        right_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.BOTH, expand=True)
+        
+        # 进度相关控件
+        progress_frame = ttk.LabelFrame(right_frame, text="优化进度", padding=10)
+        progress_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        self.label = ttk.Label(progress_frame, text="等待开始...", font=('Arial', 10))
+        self.label.pack(pady=5)
+        
+        self.progress = ttk.Progressbar(progress_frame, orient="horizontal", length=300, mode="determinate")
+        self.progress.pack(pady=5)
         
         self.percent_label = ttk.Label(progress_frame, text="0%", font=('Arial', 10))
-        self.percent_label.pack(pady=5)
+        self.percent_label.pack(pady=2)
         
         self.time_label = ttk.Label(progress_frame, text="耗时: 0:00:00", font=('Arial', 10))
-        self.time_label.pack(pady=5)
+        self.time_label.pack(pady=2)
         
         self.eta_label = ttk.Label(progress_frame, text="预计剩余: --:--:--", font=('Arial', 10))
-        self.eta_label.pack(pady=5)
+        self.eta_label.pack(pady=2)
         
         # 创建查看交易详情按钮
-        self.view_trades_btn = ttk.Button(
-            progress_frame, 
-            text="查看交易详情",
-            command=self.show_trade_details
-        )
-        self.view_trades_btn.pack(pady=10)
-        self.view_trades_btn.state(['disabled'])  # 初始状态禁用
+        self.view_trades_btn = ttk.Button(progress_frame, text="查看交易详情", command=self.show_trade_details)
+        self.view_trades_btn.pack(pady=5)
+        self.view_trades_btn.state(['disabled'])
         
-        # 创建右侧交易详情面板
-        details_frame = ttk.Frame(self.root)
-        details_frame.pack(side=tk.LEFT, padx=10, pady=10, fill=tk.BOTH, expand=True)
-        
-        # 创建搜索框和计数标签的容器
-        search_frame = ttk.Frame(details_frame)
-        search_frame.pack(fill=tk.X, pady=(0, 5))
-        
-        # 创建搜索输入框
-        self.search_var = tk.StringVar()
-        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
-        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        
-        # 创建搜索结果计数标签
-        self.search_count_label = ttk.Label(search_frame, text="")
-        self.search_count_label.pack(side=tk.LEFT, padx=5)
-        
-        # 绑定搜索框变化事件
-        def on_search_change(*args):
-            if self.trade_details:
-                self.search_text()  # 每次输入变化时自动搜索
-        
-        self.search_var.trace_add('write', on_search_change)
-        
-        # 绑定 Command+F / Control+F 快捷键
-        self.root.bind('<Command-f>', self.focus_search)  # macOS
-        self.root.bind('<Control-f>', self.focus_search)  # Windows
-        
-        # 绑定回车键和shift+回车键到搜索功能
-        self.search_entry.bind('<Return>', lambda e: self.search_text('down'))
-        self.search_entry.bind('<Shift-Return>', lambda e: self.search_text('up'))
-        
-        # 创建交易详情文本框（设置为只读）
-        self.trade_details = scrolledtext.ScrolledText(
-            details_frame,
-            wrap=tk.WORD,
-            width=50,
-            height=25,
-            font=('Courier', 11)
-        )
-        self.trade_details.pack(fill=tk.BOTH, expand=True)
-        
-        # 设置文本框为只读
-        self.trade_details.config(state='disabled')
-        
-        # 修改按键绑定，增加更多的加号键变体
-        self.root.bind('<Command-plus>', self.increase_font_size)  # macOS
-        self.root.bind('<Command-equal>', self.increase_font_size)  # macOS (等号键，不需要按Shift)
-        self.root.bind('<Command-KP_Add>', self.increase_font_size)  # macOS 数字键盘
-        self.root.bind('<Control-plus>', self.increase_font_size)  # Windows
-        self.root.bind('<Control-equal>', self.increase_font_size)  # Windows (等号键，不需要按Shift)
-        self.root.bind('<Control-KP_Add>', self.increase_font_size)  # Windows 数字键盘
-        
-        # 减号键绑定
-        self.root.bind('<Command-minus>', self.decrease_font_size)  # macOS
-        self.root.bind('<Command-KP_Subtract>', self.decrease_font_size)  # macOS 数字键盘
-        self.root.bind('<Control-minus>', self.decrease_font_size)  # Windows
-        self.root.bind('<Control-KP_Subtract>', self.decrease_font_size)  # Windows 数字键盘
-        
-        # 添加新的快捷键绑定
-        self.root.bind('<Command-Down>', self.scroll_to_end)  # macOS
-        self.root.bind('<Control-Down>', self.scroll_to_end)  # Windows
-        self.root.bind('<Command-Up>', self.scroll_to_start)  # macOS
-        self.root.bind('<Control-Up>', self.scroll_to_start)  # Windows
+        # 创建结果文本框
+        self.create_results_text_area(right_frame)
         
         # 设置窗口始终置顶
         self.root.attributes('-topmost', True)
@@ -138,8 +147,102 @@ class ProgressWindow:
         # 绑定窗口关闭事件
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
         
-        # 记录开始时间
-        self.start_time = datetime.now()
+    def create_results_text_area(self, parent):
+        """创建结果显示区域"""
+        # 创建搜索框和文本框
+        search_frame = ttk.Frame(parent)
+        search_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.search_var = tk.StringVar()
+        self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
+        self.search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        
+        self.search_count_label = ttk.Label(search_frame, text="")
+        self.search_count_label.pack(side=tk.LEFT, padx=5)
+        
+        # 绑定搜索相关事件
+        self.search_var.trace_add('write', lambda *args: self.search_text())
+        self.root.bind('<Command-f>', self.focus_search)
+        self.root.bind('<Control-f>', self.focus_search)
+        self.search_entry.bind('<Return>', lambda e: self.search_text('down'))
+        self.search_entry.bind('<Shift-Return>', lambda e: self.search_text('up'))
+        
+        # 创建文本框
+        self.trade_details = scrolledtext.ScrolledText(
+            parent,
+            wrap=tk.WORD,
+            width=50,
+            height=25,
+            font=('Courier', 11)
+        )
+        self.trade_details.pack(fill=tk.BOTH, expand=True)
+        self.trade_details.config(state='disabled')
+        
+    def start_optimization(self):
+        """开始优化按钮的回调函数"""
+        try:
+            # 获取并验证参数
+            symbol = self.symbol_var.get().strip()
+            start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
+            end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
+            ma_period = int(self.ma_period_var.get())
+            ma_protection = self.ma_protection_var.get()
+            initial_positions = int(self.initial_positions_var.get())
+            initial_cash = int(self.initial_cash_var.get())
+            min_buy_times = int(self.min_buy_times_var.get())
+            price_range = (
+                float(self.price_range_min_var.get()),
+                float(self.price_range_max_var.get())
+            )
+            n_trials = int(self.n_trials_var.get())
+            
+            # 更新总试验次数
+            self.total_trials = int(n_trials * 1.5)
+            self.progress["maximum"] = self.total_trials
+            
+            # 重置进度
+            self.current_trial = 0
+            self.progress["value"] = 0
+            self.percent_label["text"] = "0%"
+            self.start_time = datetime.now()
+            self.label["text"] = "正在优化参数..."
+            
+            # 创建优化器实例
+            from stockdata import GridStrategyOptimizer  # 避免循环导入
+            optimizer = GridStrategyOptimizer(
+                symbol=symbol,
+                start_date=start_date,
+                end_date=end_date,
+                ma_period=ma_period,
+                ma_protection=ma_protection,
+                initial_positions=initial_positions,
+                initial_cash=initial_cash,
+                min_buy_times=min_buy_times,
+                price_range=price_range
+            )
+            
+            # 将进度窗口传递给优化器
+            optimizer.progress_window = self
+            
+            def run_optimization():
+                try:
+                    results = optimizer.optimize(n_trials=n_trials)
+                    if results and not self.is_closed:
+                        # 在主线程中更新UI
+                        self.root.after(0, lambda: optimizer.print_results(results))
+                except Exception as e:
+                    if not self.is_closed:
+                        self.root.after(0, lambda: messagebox.showerror("优化错误", str(e)))
+            
+            # 在新线程中运行优化
+            self.optimization_thread = threading.Thread(target=run_optimization)
+            self.optimization_thread.daemon = True  # 设置为守护线程
+            self.optimization_thread.start()
+            
+        except ValueError as e:
+            messagebox.showerror("参数错误", str(e))
+        except Exception as e:
+            messagebox.showerror("错误", f"启动优化失败: {str(e)}")
     
     def capture_output(self, text):
         """捕获并存储输出文本"""
@@ -163,47 +266,54 @@ class ProgressWindow:
             self.view_trades_btn.state(['!disabled'])
     
     def _on_closing(self):
-        """处理窗口关闭事件"""
+        """窗口关闭时的处理"""
         self.is_closed = True
-        self.root.destroy()
-        sys.exit(0)  # 强制终止程序
+        if hasattr(self, 'optimization_thread') and self.optimization_thread.is_alive():
+            # 等待优化线程结束
+            self.label["text"] = "正在停止优化..."
+            self.root.after(100, self._check_thread_and_close)
+        else:
+            self.root.destroy()
+    
+    def _check_thread_and_close(self):
+        """检查优化线程是否结束，如果结束则关闭窗口"""
+        if not self.optimization_thread.is_alive():
+            self.root.destroy()
+        else:
+            self.root.after(100, self._check_thread_and_close)
+    
+    def update_progress(self, current_trial):
+        """更新进度条和相关标签"""
+        if self.is_closed:
+            return
         
-    def update_progress(self, trial_number):
-        """更新进度"""
-        if self.root is None or self.is_closed:
-            sys.exit(0)  # 如果窗口已关闭，终止程序
-            
-        try:
-            self.current_trial = trial_number
-            progress = (self.current_trial / self.total_trials) * 100
+        self.current_trial = current_trial
+        progress = min(current_trial, self.total_trials)
+        
+        # 计算进度百分比
+        percent = (progress / self.total_trials) * 100
+        
+        # 计算已用时间
+        elapsed_time = datetime.now() - self.start_time
+        
+        # 计算预计剩余时间
+        if percent > 0:
+            total_estimated_time = elapsed_time * (100 / percent)
+            remaining_time = total_estimated_time - elapsed_time
+        else:
+            remaining_time = datetime.now() - datetime.now()
+        
+        # 在主线程中更新UI
+        def update_ui():
+            if self.is_closed:
+                return
             self.progress["value"] = progress
-            self.percent_label["text"] = f"{progress:.1f}%"
-            
-            # 更新耗时和预计完成时间
-            if self.start_time and self.current_trial > 0:
-                # 计算已用时间
-                elapsed_time = datetime.now() - self.start_time
-                hours = int(elapsed_time.total_seconds() // 3600)
-                minutes = int((elapsed_time.total_seconds() % 3600) // 60)
-                seconds = int(elapsed_time.total_seconds() % 60)
-                self.time_label["text"] = f"耗时: {hours}:{minutes:02d}:{seconds:02d}"
-                
-                # 计算预计剩余时间
-                if self.current_trial > 0:
-                    time_per_trial = elapsed_time.total_seconds() / self.current_trial
-                    remaining_trials = self.total_trials - self.current_trial
-                    remaining_seconds = time_per_trial * remaining_trials
-                    
-                    eta_hours = int(remaining_seconds // 3600)
-                    eta_minutes = int((remaining_seconds % 3600) // 60)
-                    eta_seconds = int(remaining_seconds % 60)
-                    self.eta_label["text"] = f"预计剩余: {eta_hours}:{eta_minutes:02d}:{eta_seconds:02d}"
-            
-            self.root.update()
-        except tk.TclError:
-            # 如果发生 TclError，说明窗口已被关闭
-            sys.exit(0)
+            self.percent_label["text"] = f"{percent:.1f}%"
+            self.time_label["text"] = f"耗时: {str(elapsed_time).split('.')[0]}"
+            self.eta_label["text"] = f"预计剩余: {str(remaining_time).split('.')[0]}"
         
+        self.root.after(0, update_ui)
+    
     def close(self):
         """关闭窗口"""
         if self.root is not None and not self.is_closed:
@@ -373,3 +483,13 @@ class ProgressWindow:
             # 将插入点移动到开始
             self.trade_details.mark_set(tk.INSERT, '1.0')
             return 'break'  # 阻止事件继续传播
+
+# 不要在模块级别创建实例
+def create_progress_window():
+    window = ProgressWindow(0)
+    window.create_window()
+    return window
+
+if __name__ == "__main__":
+    progress_window = create_progress_window()
+    progress_window.root.mainloop()
