@@ -44,6 +44,8 @@ class ProgressWindow:
         self.current_results = []   # 存储当前的结果列表
         
         self.config_file = "grid_strategy_config.json"  # 配置文件路径
+        self.optimization_running = False  # 添加优化运行状态标志
+        self.start_button = None  # 添加开始按钮引用
         
     def create_window(self):
         self.root = tk.Tk()
@@ -201,12 +203,12 @@ class ProgressWindow:
         top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
         # 修改开始优化按钮的样式和位置
-        start_button = ttk.Button(
+        self.start_button = ttk.Button(
             parent, 
             text="开始优化", 
-            command=self.start_optimization
+            command=self.toggle_optimization
         )
-        start_button.grid(row=12, column=0, columnspan=2, pady=10, sticky=tk.EW)  # 使用sticky=tk.EW使按钮水平撑满
+        self.start_button.grid(row=12, column=0, columnspan=2, pady=10, sticky=tk.EW)  # 使用sticky=tk.EW使按钮水平撑满
         
         # 绑定快捷键
         self.root.bind('<Command-Return>', lambda e: self.start_optimization())  # macOS
@@ -246,8 +248,15 @@ class ProgressWindow:
     def start_optimization(self, event=None):
         """开始优化按钮的回调函数"""
         try:
+            # 如果已经在运行，直接返回
+            if self.optimization_running:
+                return
+            
             # 获取并验证参数
             symbol = self.symbol_var.get().strip()
+            if not symbol:
+                messagebox.showerror("参数错误", "请输入证券代码")
+                return
             
             # 自动判断证券类型
             security_type = "ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK"
@@ -264,6 +273,10 @@ class ProgressWindow:
                 float(self.price_range_max_var.get())
             )
             n_trials = int(self.n_trials_var.get())
+            
+            # 更新UI状态
+            self.optimization_running = True
+            self.start_button.configure(text="取消优化")
             
             # 更新总试验次数
             self.total_trials = int(n_trials * 1.5)
@@ -308,11 +321,13 @@ class ProgressWindow:
                     # 运行优化
                     results = optimizer.optimize(n_trials=n_trials)
                     
-                    if results and not self.is_closed:
+                    if results and not self.is_closed and self.optimization_running:
                         # 在主线程中更新UI
                         def update_ui():
                             if not self.is_closed:
                                 self.label["text"] = "优化完成"
+                                self.start_button.configure(text="开始优化")
+                                self.optimization_running = False
                                 # 显示优化结果
                                 self.display_optimization_results(results)
                         
@@ -322,16 +337,27 @@ class ProgressWindow:
                     if not self.is_closed:
                         self.root.after(0, lambda: messagebox.showerror("优化错误", str(e)))
                         self.label["text"] = "优化失败"
+                        self.start_button.configure(text="开始优化")
+                        self.optimization_running = False
+                finally:
+                    # 确保状态正确重置
+                    if not self.is_closed:
+                        self.root.after(0, lambda: self.start_button.configure(text="开始优化"))
+                        self.optimization_running = False
             
             # 在新线程中运行优化
             self.optimization_thread = threading.Thread(target=run_optimization)
-            self.optimization_thread.daemon = True  # 设置为守护线程
+            self.optimization_thread.daemon = True
             self.optimization_thread.start()
             
         except ValueError as e:
             messagebox.showerror("参数错误", str(e))
+            self.start_button.configure(text="开始优化")
+            self.optimization_running = False
         except Exception as e:
             messagebox.showerror("错误", f"启动优化失败: {str(e)}")
+            self.start_button.configure(text="开始优化")
+            self.optimization_running = False
     
     def capture_output(self, text):
         """捕获并存储输出文本"""
@@ -881,6 +907,29 @@ class ProgressWindow:
         except Exception:
             pass
         return None
+    
+    def toggle_optimization(self):
+        """切换优化状态（开始/取消）"""
+        if not self.optimization_running:
+            # 开始优化
+            self.start_optimization()
+            self.start_button.configure(text="取消优化")
+            self.optimization_running = True
+        else:
+            # 取消优化
+            self.cancel_optimization()
+            self.start_button.configure(text="开始优化")
+            self.optimization_running = False
+    
+    def cancel_optimization(self):
+        """取消优化过程"""
+        self.optimization_running = False
+        self.label["text"] = "优化已取消"
+        # 重置进度条
+        self.progress["value"] = 0
+        self.percent_label["text"] = "0%"
+        self.time_label["text"] = "耗时: 0:00:00"
+        self.eta_label["text"] = "预计剩余: --:--:--"
 
 # 不要在模块级别创建实例
 def create_progress_window():

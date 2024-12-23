@@ -402,19 +402,21 @@ class GridStrategyOptimizer:
         """
         total_trials = n_trials * 1.5  # 总试验次数（包括两个阶段）
         current_trial = 0
-        self.optimization_running = True  # 添加运行状态标志
 
         def callback(study, trial):
-            if self.progress_window and self.optimization_running:
+            if self.progress_window:
                 try:
                     nonlocal current_trial
                     current_trial += 1
+                    # 检查是否需要取消优化
+                    if not self.progress_window.optimization_running:
+                        study.stop()  # 停止优化
+                        return
                     # 计算总体进度
                     self.progress_window.update_progress(current_trial)
                 except Exception as e:
-                    # 如果更新进度条失败，说明窗口已关闭
-                    self.optimization_running = False
-                    print(f"进度更新已停止: {e}")
+                    print(f"进度更新失败: {e}")
+                    study.stop()
         
         try:
             # 第一阶段：粗略搜索
@@ -431,8 +433,9 @@ class GridStrategyOptimizer:
             # 第一阶段优化
             study.optimize(self.objective, n_trials=n_trials, callbacks=[callback])
             
-            if not self.optimization_running:
-                return None  # 如果优化被中断，提前返回
+            # 检查是否被取消
+            if self.progress_window and not self.progress_window.optimization_running:
+                return None
             
             # 获取第一阶段最佳参数周围的范围
             best_params = study.best_params
@@ -457,7 +460,7 @@ class GridStrategyOptimizer:
             )
             
             # 只在优化仍在运行时更新最终进度
-            if self.optimization_running and self.progress_window:
+            if self.progress_window:
                 try:
                     self.progress_window.update_progress(total_trials)
                 except Exception:
@@ -471,8 +474,6 @@ class GridStrategyOptimizer:
         except Exception as e:
             print(f"优化过程发生错误: {e}")
             return None
-        finally:
-            self.optimization_running = False
 
     def _get_refined_ranges(self, best_params):
         """
