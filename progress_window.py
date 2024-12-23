@@ -249,6 +249,10 @@ class ProgressWindow:
             command=self.toggle_optimization
         )
         self.start_button.grid(row=14, column=0, columnspan=2, pady=10, sticky=tk.EW)
+        # 绑定快捷键
+        self.root.bind('<Command-Return>', lambda e: self.start_optimization() if not self.optimization_running else self.cancel_optimization())  # macOS
+        self.root.bind('<Control-Return>', lambda e: self.start_optimization() if not self.optimization_running else self.cancel_optimization())  # Windows/Linux
+        
 
         # 初始化控件状态
         self.toggle_segment_options()

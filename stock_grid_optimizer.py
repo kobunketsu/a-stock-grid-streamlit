@@ -389,6 +389,7 @@ class GridStrategyOptimizer:
         if self.profit_calc_method == "median":
             combined_profit = float(np.median(profit_rates))
         else:  # 默认使用平均值
+            
             combined_profit = float(np.mean(profit_rates))
         
         # 汇总统计信息
