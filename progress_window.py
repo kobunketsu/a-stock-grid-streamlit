@@ -202,41 +202,56 @@ class ProgressWindow:
         top_n_entry = ttk.Entry(parent, textvariable=self.top_n_var, width=12)
         top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
-        # 在最少买入次数后添加多段回测设置框架
+        # 添加分隔线
+        ttk.Separator(parent, orient='horizontal').grid(
+            row=12, column=0, columnspan=2, sticky='ew', pady=10)
+
+        # 多段回测设置框架
         segments_frame = ttk.LabelFrame(parent, text="多段回测设置", padding=5)
-        segments_frame.grid(row=9, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        segments_frame.grid(row=13, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
-        # 收益计算方法选择
-        ttk.Label(segments_frame, text="收益计算:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        self.profit_calc_method_var = tk.StringVar(value="mean")
-        profit_calc_combo = ttk.Combobox(
-            segments_frame,
-            textvariable=self.profit_calc_method_var,
-            values=["mean", "median"],
-            width=8,
-            state="readonly"
-        )
-        profit_calc_combo.grid(row=0, column=1, sticky=tk.W, pady=2)
-        
-        # 资金持仓衔接选项
-        self.connect_segments_var = tk.BooleanVar(value=False)
+        # 分段回测开关
+        self.enable_segments = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             segments_frame,
-            text="衔接资金持仓",
-            variable=self.connect_segments_var
-        ).grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=2)
+            text="启用多段回测",
+            variable=self.enable_segments,
+            command=self.toggle_segment_options
+        ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=2)
         
-        # 修改开始优化按钮的样式和位置
+        # 分段收益计算模式
+        self.segment_label = ttk.Label(segments_frame, text="计算方式:")
+        self.segment_label.grid(row=1, column=0, sticky=tk.W, pady=2)
+        
+        self.segment_mode = tk.StringVar(value="平均值")
+        self.segment_mode_combo = ttk.Combobox(
+            segments_frame, 
+            textvariable=self.segment_mode,
+            values=["平均值", "中值"],
+            state="readonly",
+            width=12
+        )
+        self.segment_mode_combo.grid(row=1, column=1, sticky=tk.W, pady=2)
+        
+        # 资金持仓衔接选项
+        self.connect_segments = tk.BooleanVar(value=False)
+        self.connect_checkbox = ttk.Checkbutton(
+            segments_frame,
+            text="子区间资金和持仓衔接",
+            variable=self.connect_segments
+        )
+        self.connect_checkbox.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
+
+        # 开始优化按钮
         self.start_button = ttk.Button(
             parent, 
             text="开始优化", 
             command=self.toggle_optimization
         )
-        self.start_button.grid(row=12, column=0, columnspan=2, pady=10, sticky=tk.EW)  # 使用sticky=tk.EW使按钮水平撑满
-        
-        # 绑定快捷键
-        self.root.bind('<Command-Return>', lambda e: self.start_optimization())  # macOS
-        self.root.bind('<Control-Return>', lambda e: self.start_optimization())  # Windows/Linux
+        self.start_button.grid(row=14, column=0, columnspan=2, pady=10, sticky=tk.EW)
+
+        # 初始化控件状态
+        self.toggle_segment_options()
         
         # 为所有输入框添加焦点事件处理
         all_entries = [
@@ -335,8 +350,8 @@ class ProgressWindow:
                 initial_cash=initial_cash,
                 min_buy_times=min_buy_times,
                 price_range=price_range,
-                profit_calc_method=self.profit_calc_method_var.get(),
-                connect_segments=self.connect_segments_var.get()
+                profit_calc_method=self.segment_mode.get() if self.enable_segments.get() else None,
+                connect_segments=self.connect_segments.get() if self.enable_segments.get() else False
             )
             
             # 将进度窗口传递给优化器
@@ -644,8 +659,8 @@ class ProgressWindow:
             start_date=datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d'),
             end_date=datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d'),
             min_buy_times=int(self.min_buy_times_var.get()),
-            profit_calc_method=self.profit_calc_method_var.get(),
-            connect_segments=self.connect_segments_var.get()
+            profit_calc_method=self.segment_mode.get(),
+            connect_segments=self.connect_segments.get()
         )
         
         # 运行回测并获取结果
@@ -1050,6 +1065,13 @@ class ProgressWindow:
         except Exception as e:
             print(f"加载证券配置失败: {e}")
         return None
+
+    def toggle_segment_options(self):
+        """切换分段收益相关选项的启用状态"""
+        state = 'normal' if self.enable_segments.get() else 'disabled'
+        self.segment_label['state'] = state
+        self.segment_mode_combo['state'] = 'readonly' if self.enable_segments.get() else 'disabled'
+        self.connect_checkbox.state(['!disabled' if self.enable_segments.get() else 'disabled'])
 
 # 不要在模块级别创建实例
 def create_progress_window():
