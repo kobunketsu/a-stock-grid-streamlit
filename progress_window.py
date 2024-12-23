@@ -299,7 +299,7 @@ class ProgressWindow:
             self.trade_details.config(state='disabled')
             
             # 创建优化器实例
-            from stockdata import GridStrategyOptimizer  # 避免循环导入
+            from stock_grid_optimizer import GridStrategyOptimizer  # 避免循环导入
             optimizer = GridStrategyOptimizer(
                 symbol=symbol,
                 security_type=security_type,  # 传递自动判断的证券类型
@@ -728,10 +728,8 @@ class ProgressWindow:
                 is_etf = len(symbol) == 6 and symbol.startswith(("1", "5"))
                 
                 # 检查是否是新的证券代码
-                is_new_symbol = not os.path.exists(self.config_file) or (
-                    os.path.exists(self.config_file) and 
-                    symbol != self.load_config_value('symbol')
-                )
+                old_symbol = self.load_config_value('symbol')
+                is_new_symbol = not os.path.exists(self.config_file) or symbol != old_symbol
                 
                 if is_etf:
                     # 获取ETF基金信息
@@ -760,14 +758,22 @@ class ProgressWindow:
                 
                 self.symbol_name_var.set(name)
                 
-                # 如果是新证券，更新价格范围
-                if is_new_symbol and not hist_df.empty:
-                    price_min = hist_df['最低'].min()
-                    price_max = hist_df['最高'].max()
-                    # 设置价格范围（略微扩大范围）
-                    self.price_range_min_var.set(f"{price_min:.3f}")
-                    self.price_range_max_var.set(f"{price_max:.3f}")
-                    print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
+                # 如果是新证券，尝试从配置文件中获取价格范围
+                if is_new_symbol:
+                    # 先尝试从配置文件中获取该证券的价格范围
+                    config_data = self.load_symbol_config(symbol)
+                    if config_data:
+                        self.price_range_min_var.set(config_data.get('price_range_min', ''))
+                        self.price_range_max_var.set(config_data.get('price_range_max', ''))
+                        print(f"已从配置加载价格范围: {config_data.get('price_range_min')} - {config_data.get('price_range_max')}")
+                    elif not hist_df.empty:
+                        # 如果配置文件中没有，则使用历史数据计算价格范围
+                        price_min = hist_df['最低'].min()
+                        price_max = hist_df['最高'].max()
+                        # 设置价格范围（略微扩大范围）
+                        self.price_range_min_var.set(f"{price_min:.3f}")
+                        self.price_range_max_var.set(f"{price_max:.3f}")
+                        print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
                 
             else:  # source == 'name'
                 name = self.symbol_name_var.get().strip()
@@ -930,6 +936,25 @@ class ProgressWindow:
         self.percent_label["text"] = "0%"
         self.time_label["text"] = "耗时: 0:00:00"
         self.eta_label["text"] = "预计剩余: --:--:--"
+
+    def load_symbol_config(self, symbol):
+        """
+        从配置文件中加载特定证券的配置信息
+        @param symbol: 证券代码
+        @return: 配置信息字典或None
+        """
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    if config.get('symbol') == symbol:
+                        return {
+                            'price_range_min': config.get('price_range_min'),
+                            'price_range_max': config.get('price_range_max')
+                        }
+        except Exception as e:
+            print(f"加载证券配置失败: {e}")
+        return None
 
 # 不要在模块级别创建实例
 def create_progress_window():
