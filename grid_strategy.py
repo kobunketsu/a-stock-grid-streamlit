@@ -97,14 +97,22 @@ class GridStrategy:
                 print(f"\n=== {self.symbol_name}({self.symbol}) 回测报告 ===")
                 print(f"回测区间: {start_date.strftime('%Y-%m-%d')} 至 {end_date.strftime('%Y-%m-%d')}")
             
-            # 使用日线数据而不是分钟数据
-            df = ak.fund_etf_hist_em(
-                symbol=self.symbol,
-                period="daily",
-                start_date=start_date_str,
-                end_date=end_date_str,
-                adjust="qfq"
-            )
+            # 根据证券类型获取历史数据
+            if hasattr(self, 'security_type') and self.security_type == "STOCK":
+                df = ak.stock_zh_a_hist(
+                    symbol=self.symbol,
+                    start_date=start_date_str,
+                    end_date=end_date_str,
+                    adjust="qfq"
+                )
+            else:
+                # 默认使用ETF数据接口
+                df = ak.fund_etf_hist_em(
+                    symbol=self.symbol,
+                    start_date=start_date_str,
+                    end_date=end_date_str,
+                    adjust="qfq"
+                )
             
             if df.empty:
                 raise Exception("未获取到任何数据")

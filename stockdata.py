@@ -13,59 +13,99 @@ import io
 from contextlib import redirect_stdout
 
 class GridStrategyOptimizer:
+    """
+    网格交易策略优化器
+    
+    算法说明：
+    1. 优化目标
+       - 通过调整网格参数最大化回测期间的收益率
+       - 保证交易次数满足最小要求，避免过度拟合
+       - 确保参数之间的合理关系（如回调率小于主要比率）
+    
+    2. 参数范围设定
+       - 上涨卖出比率 (0.3% ~ 3%)：触发卖出的上涨幅度
+       - 下跌买入比率 (0.3% ~ 3%)：触发买入的下跌幅度
+       - 上涨回调比率 (0.1% ~ 1%)：确认卖出的回调幅度，不超过卖出比率的30%
+       - 下跌反弹比率 (0.1% ~ 1%)：确认买入的反弹幅度，不超过买入比率的30%
+       - 单次交易股数 (1000 ~ 最大可交易股数)：根据资金和最少交易次数计算
+    
+    3. 优化流程
+       a) 第一阶段（粗略搜索）
+          - 使用较大的步长快速探索参数空间
+          - 识别潜在的优势参数区域
+          
+       b) 第二阶段（精细搜索）
+          - 在第一阶段发现的优势区域进行精细化搜索
+          - 使用较小的步长寻找最优参数组合
+    
+    4. 约束条件
+       - 价格范围限制：所有交易必须在指定价格区间内
+       - 均线保护（可选）：根据MA均线调整价格范围
+       - 资金约束：确保每次交易有足够的资金/持仓
+       - 最少交易次数：通过调整单次交易股数确保
+    
+    5. 评估指标
+       - 主要指标：策略收益率
+       - 次要指标：交易次数、失败交易统计
+    
+    6. 特殊功能
+       - 支持均线保护机制
+       - 动态调整交易股数
+       - 详细的交易记录和失败原因统计
+    """
     # 添加类常量
     REBOUND_RATE_MAX_RATIO = 0.3  # 回调/反弹率相对于主要率的最大比例
     
     def __init__(self, symbol: str = "560610",
                  start_date: datetime = datetime(2024, 11, 1), 
                  end_date: datetime = datetime(2024, 12, 20),
-                 ma_period: int = None,  # 均线周期
-                 ma_protection: bool = False,  # 是否开启均线保护
-                 initial_positions: int = 50000,  # 初始持仓
-                 initial_cash: int = 50000,  # 初始资金
-                 min_buy_times: int = 10,  # 最少买入次数
-                 price_range: tuple = (0.910, 1.010)):  # 价格范围
+                 security_type: str = "ETF",  # 新增参数：证券类型
+                 ma_period: int = None,
+                 ma_protection: bool = False,
+                 initial_positions: int = 50000,
+                 initial_cash: int = 50000,
+                 min_buy_times: int = 10,
+                 price_range: tuple = (0.910, 1.010)):
         
         # 先初始化基本参数
         self.start_date = start_date
         self.end_date = end_date
+        self.security_type = security_type.upper()  # 转换为大写
         
         # 验证价格范围
         if not self._validate_price_range(price_range):
             raise ValueError(f"无效的价格范围: {price_range}")
         
-        # 获取ETF基金名称和初始价格
+        # 获取证券名称和初始价格
         try:
-            # 获取所有ETF基金列表
-            etf_df = ak.fund_etf_spot_em()
-            # 查找对应的ETF基金名称
-            etf_name = etf_df[etf_df['代码'] == symbol]['名称'].values[0]
+            if self.security_type == "ETF":
+                # 获取ETF基金信息
+                etf_df = ak.fund_etf_spot_em()
+                security_name = etf_df[etf_df['代码'] == symbol]['名称'].values[0]
+                price_df = self._get_etf_price_data(symbol, start_date)
+            else:
+                # 获取股票信息
+                stock_df = ak.stock_zh_a_spot_em()
+                security_name = stock_df[stock_df['代码'] == symbol]['名称'].values[0]
+                price_df = self._get_stock_price_data(symbol, start_date)
             
-            # 获取开始日期的价格数据
-            start_date_str = start_date.strftime('%Y%m%d')
-            df = ak.fund_etf_hist_em(
-                symbol=symbol,
-                start_date=start_date_str,
-                end_date=start_date_str
-            )
-            
-            if not df.empty:
-                # 计算开盘价和收盘价的中间价格
-                base_price = (df.iloc[0]['开盘'] + df.iloc[0]['收盘']) / 2
+            if not price_df.empty:
+                base_price = (price_df.iloc[0]['开盘'] + price_df.iloc[0]['收盘']) / 2
                 print(f"使用开始日期的中间价格作为基准价: {base_price:.3f}")
             else:
-                base_price = 0.960  # 如果获取失败，使用默认值
+                base_price = price_range[0]  # 使用价格范围的最小值作为默认值
                 print(f"无法获取开始日期价格，使用默认基准价: {base_price}")
                 
         except Exception as e:
-            print(f"获取ETF名称或价格失败: {e}")
-            etf_name = "未知ETF"
-            base_price = 0.960  # 使用默认值
-            
+            print(f"获取证券名称或价格失败: {e}")
+            security_name = "未知证券"
+            base_price = price_range[0]
+        
         # 初始化固定参数
         self.fixed_params = {
             "symbol": symbol,
-            "symbol_name": etf_name,
+            "symbol_name": security_name,
+            "security_type": self.security_type,
             "base_price": base_price,
             "price_range": price_range,
             "initial_positions": initial_positions,
@@ -163,17 +203,24 @@ class GridStrategyOptimizer:
         @return: 计算得到的均线价格，失败时返回None
         """
         try:
-            # 获取历史数据，考虑预留更多数据以计算均线
-            start_date_str = (self.start_date - timedelta(days=ma_period*2))\
-                .strftime('%Y%m%d')
-            end_date_str = self.start_date.strftime('%Y%m%d')  # 只需要计算到开始日期
+            start_date_str = (self.start_date - timedelta(days=ma_period*2)).strftime('%Y%m%d')
+            end_date_str = self.start_date.strftime('%Y%m%d')
             
-            # 获取历史数据
-            df = ak.fund_etf_hist_em(
-                symbol=self.fixed_params["symbol"],
-                start_date=start_date_str,
-                end_date=end_date_str
-            )
+            # 根据证券类型获取历史数据
+            if self.fixed_params["security_type"] == "ETF":
+                df = ak.fund_etf_hist_em(
+                    symbol=self.fixed_params["symbol"],
+                    start_date=start_date_str,
+                    end_date=end_date_str,
+                    adjust="qfq"
+                )
+            else:
+                df = ak.stock_zh_a_hist(
+                    symbol=self.fixed_params["symbol"],
+                    start_date=start_date_str,
+                    end_date=end_date_str,
+                    adjust="qfq"
+                )
             
             # 确保日期列为索引且按时间升序排列
             df['日期'] = pd.to_datetime(df['日期'])
@@ -629,6 +676,25 @@ class GridStrategyOptimizer:
             # 启用查看交易详情按钮
             self.progress_window.root.after(0, self.progress_window.enable_trade_details_button)
 
+    def _get_etf_price_data(self, symbol: str, date: datetime) -> pd.DataFrame:
+        """获取ETF价格数据"""
+        date_str = date.strftime('%Y%m%d')
+        return ak.fund_etf_hist_em(
+            symbol=symbol,
+            start_date=date_str,
+            end_date=date_str,
+            adjust="qfq"
+        )
+
+    def _get_stock_price_data(self, symbol: str, date: datetime) -> pd.DataFrame:
+        """获取股票价格数据"""
+        date_str = date.strftime('%Y%m%d')
+        return ak.stock_zh_a_hist(
+            symbol=symbol,
+            start_date=date_str,
+            end_date=date_str,
+            adjust="qfq"
+        )
 
 if __name__ == "__main__":
     progress_window = create_progress_window()

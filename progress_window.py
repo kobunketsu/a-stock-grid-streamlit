@@ -5,6 +5,8 @@ import sys
 import io
 from contextlib import redirect_stdout
 import threading
+import akshare as ak
+import pandas as pd
 
 class ProgressWindow:
     def __init__(self, total_trials):
@@ -23,6 +25,7 @@ class ProgressWindow:
         
         # 将变量声明为None，稍后在create_window中初始化
         self.symbol_var = None
+        self.symbol_name_var = None  # 新增证券名称变量
         self.start_date_var = None
         self.end_date_var = None
         self.ma_period_var = None
@@ -35,6 +38,9 @@ class ProgressWindow:
         self.n_trials_var = None
         self.top_n_var = None
         
+        self.sort_ascending = False  # 修改默认排序方向为降序
+        self.current_results = []   # 存储当前的结果列表
+        
     def create_window(self):
         self.root = tk.Tk()
         self.root.title("网格策略优化器")
@@ -42,6 +48,7 @@ class ProgressWindow:
         
         # 在创建窗口后初始化变量
         self.symbol_var = tk.StringVar(self.root, value="159300")
+        self.symbol_name_var = tk.StringVar(self.root)  # 新增证券名称变量
         self.start_date_var = tk.StringVar(self.root, value="2024-10-10")
         self.end_date_var = tk.StringVar(self.root, value="2024-12-20")
         self.ma_period_var = tk.StringVar(self.root, value="55")
@@ -68,6 +75,18 @@ class ProgressWindow:
         # 中间结果面板
         results_frame = ttk.LabelFrame(main_frame, text="优化结果", padding=10)
         results_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
+        
+        # 添加排序按钮
+        sort_frame = ttk.Frame(results_frame)
+        sort_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        self.sort_ascending = False  # 排序方向标志
+        self.sort_button = ttk.Button(
+            sort_frame, 
+            text="收益率 ↑", 
+            command=self.toggle_sort
+        )
+        self.sort_button.pack(side=tk.LEFT)
         
         # 创建参数组合列表的画布和滚动条
         self.results_canvas = tk.Canvas(results_frame)
@@ -103,54 +122,94 @@ class ProgressWindow:
         
     def create_parameter_inputs(self, parent):
         """创建参数输入控件"""
-        # ETF代码
-        ttk.Label(parent, text="ETF代码:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.symbol_var, width=20).grid(row=0, column=1, pady=2)
+        # 设置左侧面板的宽度
+        parent.configure(width=200)
         
-        # 日期范围
-        ttk.Label(parent, text="开始日期:").grid(row=1, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.start_date_var, width=20).grid(row=1, column=1, pady=2)
+        # 证券代码输入框
+        ttk.Label(parent, text="证券代码:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        symbol_entry = ttk.Entry(parent, textvariable=self.symbol_var, width=12)
+        symbol_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text="结束日期:").grid(row=2, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.end_date_var, width=20).grid(row=2, column=1, pady=2)
+        # 证券名称输入框
+        ttk.Label(parent, text="证券名称:").grid(row=1, column=0, sticky=tk.W, pady=2)
+        symbol_name_entry = ttk.Entry(parent, textvariable=self.symbol_name_var, width=12)
+        symbol_name_entry.grid(row=1, column=1, sticky=tk.W, pady=2)
         
-        # 均线设置
-        ttk.Label(parent, text="均线周期:").grid(row=3, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.ma_period_var, width=20).grid(row=3, column=1, pady=2)
+        # 绑定事件
+        symbol_entry.bind('<FocusOut>', lambda e: self.update_symbol_info('code'))
+        symbol_entry.bind('<Return>', lambda e: self.update_symbol_info('code'))
+        symbol_name_entry.bind('<FocusOut>', lambda e: self.update_symbol_info('name'))
+        symbol_name_entry.bind('<Return>', lambda e: self.update_symbol_info('name'))
+        
+        # 初始化证券信息
+        self.update_symbol_info('code')
+        
+        # 其他参数输入框从第3行开始
+        ttk.Label(parent, text="开始日期:").grid(row=2, column=0, sticky=tk.W, pady=2)
+        start_date_entry = ttk.Entry(parent, textvariable=self.start_date_var, width=12)
+        start_date_entry.grid(row=2, column=1, sticky=tk.W, pady=2)
+        
+        ttk.Label(parent, text="结束日期:").grid(row=3, column=0, sticky=tk.W, pady=2)
+        end_date_entry = ttk.Entry(parent, textvariable=self.end_date_var, width=12)
+        end_date_entry.grid(row=3, column=1, sticky=tk.W, pady=2)
+        
+        ttk.Label(parent, text="均线周期:").grid(row=4, column=0, sticky=tk.W, pady=2)
+        ma_period_entry = ttk.Entry(parent, textvariable=self.ma_period_var, width=12)
+        ma_period_entry.grid(row=4, column=1, sticky=tk.W, pady=2)
         
         ttk.Checkbutton(parent, text="启用均线保护", variable=self.ma_protection_var).grid(
-            row=4, column=0, columnspan=2, sticky=tk.W, pady=2)
+            row=5, column=0, columnspan=2, sticky=tk.W, pady=2)
         
-        # 资金设置
-        ttk.Label(parent, text="初始持仓:").grid(row=5, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.initial_positions_var, width=20).grid(row=5, column=1, pady=2)
+        ttk.Label(parent, text="初始持仓:").grid(row=6, column=0, sticky=tk.W, pady=2)
+        initial_pos_entry = ttk.Entry(parent, textvariable=self.initial_positions_var, width=12)
+        initial_pos_entry.grid(row=6, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text="初始资金:").grid(row=6, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.initial_cash_var, width=20).grid(row=6, column=1, pady=2)
+        ttk.Label(parent, text="初始资金:").grid(row=7, column=0, sticky=tk.W, pady=2)
+        initial_cash_entry = ttk.Entry(parent, textvariable=self.initial_cash_var, width=12)
+        initial_cash_entry.grid(row=7, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text="最少买入次数:").grid(row=7, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.min_buy_times_var, width=20).grid(row=7, column=1, pady=2)
+        ttk.Label(parent, text="最少买入次数:").grid(row=8, column=0, sticky=tk.W, pady=2)
+        min_buy_entry = ttk.Entry(parent, textvariable=self.min_buy_times_var, width=12)
+        min_buy_entry.grid(row=8, column=1, sticky=tk.W, pady=2)
         
-        # 价格范围
+        # 价格范围框架
         price_range_frame = ttk.LabelFrame(parent, text="价格范围", padding=5)
-        price_range_frame.grid(row=8, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        price_range_frame.grid(row=9, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
         ttk.Label(price_range_frame, text="最小值:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(price_range_frame, textvariable=self.price_range_min_var, width=8).grid(row=0, column=1, pady=2)
+        price_min_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_min_var, width=6)
+        price_min_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(price_range_frame, text="最大值:").grid(row=0, column=2, sticky=tk.W, pady=2, padx=(10,0))
-        ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=8).grid(row=0, column=3, pady=2)
+        ttk.Label(price_range_frame, text="最大值:").grid(row=0, column=2, sticky=tk.W, pady=2, padx=(5,0))
+        price_max_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=6)
+        price_max_entry.grid(row=0, column=3, sticky=tk.W, pady=2)
         
         # 优化设置
-        ttk.Label(parent, text="优化次数:").grid(row=9, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.n_trials_var, width=20).grid(row=9, column=1, pady=2)
+        ttk.Label(parent, text="优化次数:").grid(row=10, column=0, sticky=tk.W, pady=2)
+        n_trials_entry = ttk.Entry(parent, textvariable=self.n_trials_var, width=12)
+        n_trials_entry.grid(row=10, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text="显示前N个结果:").grid(row=10, column=0, sticky=tk.W, pady=2)
-        ttk.Entry(parent, textvariable=self.top_n_var, width=20).grid(row=10, column=1, pady=2)
+        ttk.Label(parent, text="显示前N个结果:").grid(row=11, column=0, sticky=tk.W, pady=2)
+        top_n_entry = ttk.Entry(parent, textvariable=self.top_n_var, width=12)
+        top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
         # 添加开始优化按钮
-        ttk.Button(parent, text="开始优化", command=self.start_optimization).grid(
-            row=11, column=0, columnspan=2, pady=10)
+        start_button = ttk.Button(parent, text="开始优化", command=self.start_optimization)
+        start_button.grid(row=12, column=0, columnspan=2, pady=10)
+        
+        # 为所有输入框添加焦点事件处理
+        all_entries = [
+            symbol_entry, start_date_entry, end_date_entry, ma_period_entry,
+            initial_pos_entry, initial_cash_entry, min_buy_entry,
+            price_min_entry, price_max_entry, n_trials_entry, top_n_entry
+        ]
+        
+        for entry in all_entries:
+            # 绑定点击事件和Tab键事件到同一个处理函数
+            entry.bind('<Button-1>', lambda e, widget=entry: self.handle_entry_focus(e, widget))
+            entry.bind('<Tab>', lambda e, widget=entry: self.handle_entry_focus(e, widget))
+            # 添加焦点进入事件处理
+            entry.bind('<FocusIn>', lambda e, widget=entry: self.handle_focus_in(e, widget))
     
     def create_progress_widgets(self, parent):
         """创建进度相关控件"""
@@ -174,6 +233,10 @@ class ProgressWindow:
         try:
             # 获取并验证参数
             symbol = self.symbol_var.get().strip()
+            
+            # 自动判断证券类型
+            security_type = "ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK"
+            
             start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
             end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
             ma_period = int(self.ma_period_var.get())
@@ -211,6 +274,7 @@ class ProgressWindow:
             from stockdata import GridStrategyOptimizer  # 避免循环导入
             optimizer = GridStrategyOptimizer(
                 symbol=symbol,
+                security_type=security_type,  # 传递自动判断的证券类型
                 start_date=start_date,
                 end_date=end_date,
                 ma_period=ma_period,
@@ -483,19 +547,52 @@ class ProgressWindow:
         self.trade_details.config(state='disabled')
         self.trade_details.see('1.0')
     
+    def toggle_sort(self):
+        """切换排序方向并重新显示结果"""
+        self.sort_ascending = not self.sort_ascending
+        self.sort_button.config(text=f"收益率 {'↑' if self.sort_ascending else '↓'}")
+        if hasattr(self, 'current_results'):
+            self.display_optimization_results(self.current_results)
+    
     def display_optimization_results(self, results):
         """显示优化结果"""
+        # 保存当前结果以供排序使用
+        self.current_results = results
+        
         # 清空现有结果
         for widget in self.params_container.winfo_children():
             widget.destroy()
         
         # 获取前N个结果
         top_n = int(self.top_n_var.get())
-        sorted_trials = results["sorted_trials"][:top_n]
+        
+        # 过滤掉收益率<=0的结果并排序
+        valid_trials = [trial for trial in results["sorted_trials"] if -trial.value > 0]
+        
+        # 默认按收益率从高到低排序
+        sorted_trials = sorted(valid_trials, key=lambda t: -t.value)  # 收益率从高到低
+        if self.sort_ascending:  # 只有在明确要求升序时才改变顺序
+            sorted_trials.reverse()
+        
+        # 限制显示数量
+        display_trials = sorted_trials[:top_n]
+        
+        if not display_trials:
+            # 如果没有有效结果，显示提示信息
+            ttk.Label(
+                self.params_container, 
+                text="没有找到收益率大于0的参数组合",
+                font=('Arial', 10)
+            ).pack(pady=10)
+            return
         
         # 创建每个参数组合的显示块
-        for i, trial in enumerate(sorted_trials, 1):
-            frame = ttk.LabelFrame(self.params_container, text=f"第 {i} 名", padding=5)
+        for i, trial in enumerate(display_trials, 1):
+            frame = ttk.LabelFrame(
+                self.params_container, 
+                text=f"第 {i} 名", 
+                padding=5
+            )
             frame.pack(fill=tk.X, pady=5)
             
             # 创建参数信息
@@ -503,7 +600,8 @@ class ProgressWindow:
             info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
             
             profit_rate = -trial.value
-            ttk.Label(info_frame, text=f"收益率: {profit_rate:.2f}%").pack(anchor=tk.W)
+            ttk.Label(info_frame, text=f"收益率: {profit_rate:.2f}%",
+                     font=('Arial', 10, 'bold')).pack(anchor=tk.W)
             ttk.Label(info_frame, text=f"交易次数: {trial.user_attrs['trade_count']}").pack(anchor=tk.W)
             
             # 显示参数
@@ -556,6 +654,87 @@ class ProgressWindow:
         self.root.bind('<Control-f>', self.focus_search)
         self.search_entry.bind('<Return>', lambda e: self.search_text('down'))
         self.search_entry.bind('<Shift-Return>', lambda e: self.search_text('up'))
+
+    def update_symbol_info(self, source='code'):
+        """
+        更新证券信息
+        @param source: 'code' 表示从代码更新名称，'name' 表示从名称更新代码
+        """
+        try:
+            if source == 'code':
+                symbol = self.symbol_var.get().strip()
+                if not symbol:
+                    self.symbol_name_var.set("")
+                    return
+                
+                # 自动判断证券类型
+                is_etf = len(symbol) == 6 and symbol.startswith(("1", "5"))
+                
+                if is_etf:
+                    # 获取ETF基金信息
+                    df = ak.fund_etf_spot_em()
+                    name = df[df['代码'] == symbol]['名称'].values[0]
+                else:
+                    # 获取股票信息
+                    df = ak.stock_zh_a_spot_em()
+                    name = df[df['代码'] == symbol]['名称'].values[0]
+                
+                self.symbol_name_var.set(name)
+                
+            else:  # source == 'name'
+                name = self.symbol_name_var.get().strip()
+                if not name:
+                    self.symbol_var.set("")
+                    return
+                
+                # 尝试在ETF中查找
+                df_etf = ak.fund_etf_spot_em()
+                etf_match = df_etf[df_etf['名称'].str.contains(name, na=False)]
+                
+                if not etf_match.empty:
+                    self.symbol_var.set(etf_match.iloc[0]['代码'])
+                    self.symbol_name_var.set(etf_match.iloc[0]['名称'])
+                    return
+                
+                # 如果ETF中未找到，尝试在股票中查找
+                df_stock = ak.stock_zh_a_spot_em()
+                stock_match = df_stock[df_stock['名称'].str.contains(name, na=False)]
+                
+                if not stock_match.empty:
+                    self.symbol_var.set(stock_match.iloc[0]['代码'])
+                    self.symbol_name_var.set(stock_match.iloc[0]['名称'])
+                else:
+                    print(f"未找到包含 '{name}' 的证券")
+                
+        except Exception as e:
+            print(f"更新证券信息失败: {e}")
+            if source == 'code':
+                self.symbol_name_var.set("未找到证券")
+            else:
+                self.symbol_var.set("")
+    
+    def handle_entry_focus(self, event, widget):
+        """处理输入框的焦点事件"""
+        def delayed_focus():
+            if widget.winfo_exists():  # 确保widget仍然存在
+                widget.focus_set()
+                widget.selection_range(0, tk.END)  # 选中所有文本
+                # 强制更新UI
+                widget.update_idletasks()
+        
+        # 清除可能存在的待处理焦点事件
+        if hasattr(self, '_focus_after_id'):
+            self.root.after_cancel(self._focus_after_id)
+        
+        # 设置新的延迟焦点事件
+        self._focus_after_id = self.root.after(10, delayed_focus)
+        return "break"  # 阻止事件继续传播
+
+    def handle_focus_in(self, event, widget):
+        """处理输入框获得焦点时的事件"""
+        widget.selection_range(0, tk.END)  # 选中所有文本
+        # 强制更新UI
+        widget.update_idletasks()
 
 # 不要在模块级别创建实例
 def create_progress_window():
