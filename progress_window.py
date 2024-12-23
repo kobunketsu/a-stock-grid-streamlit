@@ -200,9 +200,17 @@ class ProgressWindow:
         top_n_entry = ttk.Entry(parent, textvariable=self.top_n_var, width=12)
         top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
-        # 添加开始优化按钮
-        start_button = ttk.Button(parent, text="开始优化", command=self.start_optimization)
-        start_button.grid(row=12, column=0, columnspan=2, pady=10)
+        # 修改开始优化按钮的样式和位置
+        start_button = ttk.Button(
+            parent, 
+            text="开始优化", 
+            command=self.start_optimization
+        )
+        start_button.grid(row=12, column=0, columnspan=2, pady=10, sticky=tk.EW)  # 使用sticky=tk.EW使按钮水平撑满
+        
+        # 绑定快捷键
+        self.root.bind('<Command-Return>', lambda e: self.start_optimization())  # macOS
+        self.root.bind('<Control-Return>', lambda e: self.start_optimization())  # Windows/Linux
         
         # 为所有输入框添加焦点事件处理
         all_entries = [
@@ -235,7 +243,7 @@ class ProgressWindow:
         self.eta_label = ttk.Label(parent, text="预计剩余: --:--:--", font=('Arial', 10))
         self.eta_label.pack(pady=2)
     
-    def start_optimization(self):
+    def start_optimization(self, event=None):
         """开始优化按钮的回调函数"""
         try:
             # 获取并验证参数
@@ -595,37 +603,47 @@ class ProgressWindow:
             ).pack(pady=10)
             return
         
-        # 创建每个参数组合的显示块
+        # 参数名称映射
+        param_names = {
+            'up_sell_rate': '上涨卖出',
+            'down_buy_rate': '下跌买入',
+            'up_callback_rate': '上涨回调',
+            'down_rebound_rate': '下跌反弹',
+            'shares_per_trade': '单次交易股数'
+        }
+        
+        # 显示每个结果
         for i, trial in enumerate(display_trials, 1):
-            frame = ttk.LabelFrame(
-                self.params_container, 
-                text=f"第 {i} 名", 
-                padding=5
-            )
-            frame.pack(fill=tk.X, pady=5)
-            
-            # 创建参数信息
-            info_frame = ttk.Frame(frame)
-            info_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-            
             profit_rate = -trial.value
-            ttk.Label(info_frame, text=f"收益率: {profit_rate:.2f}%",
-                     font=('Arial', 10, 'bold')).pack(anchor=tk.W)
-            ttk.Label(info_frame, text=f"交易次数: {trial.user_attrs['trade_count']}").pack(anchor=tk.W)
+            params = trial.params
             
-            # 显示参数
-            params_text = "参数:\n"
-            for param, value in trial.params.items():
-                if param in ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']:
-                    params_text += f"  {param}: {value*100:.2f}%\n"
+            # 创建结果框架
+            result_frame = ttk.LabelFrame(
+                self.params_container,
+                text=f"组合 {i} - 收益率: {profit_rate:.2f}%"
+            )
+            result_frame.pack(fill=tk.X, padx=5, pady=5)
+            
+            # 添加参数信息
+            param_text = ""
+            for key, value in params.items():
+                if key == 'shares_per_trade':
+                    param_text += f"{param_names[key]}: {value:,}\n"
                 else:
-                    params_text += f"  {param}: {value}\n"
-            ttk.Label(info_frame, text=params_text).pack(anchor=tk.W)
+                    param_text += f"{param_names[key]}: {value*100:.2f}%\n"
             
-            # 添加查看按钮
-            ttk.Button(frame, text="查看详情", 
-                      command=lambda p=trial.params: self.show_strategy_details(p)).pack(
-                          side=tk.RIGHT, padx=5)
+            param_text += f"交易次数: {trial.user_attrs.get('trade_count', 'N/A')}"
+            
+            param_label = ttk.Label(result_frame, text=param_text, justify=tk.LEFT)
+            param_label.pack(padx=5, pady=5)
+            
+            # 添加查看详情按钮
+            detail_button = ttk.Button(
+                result_frame,
+                text="查看交易详情",
+                command=lambda t=trial: self.show_trade_details(t)
+            )
+            detail_button.pack(pady=(0, 5))
         
         # 更新画布滚动区域
         self.params_container.update_idletasks()
