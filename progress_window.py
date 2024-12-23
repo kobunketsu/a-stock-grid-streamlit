@@ -577,9 +577,10 @@ class ProgressWindow:
         # 过滤掉收益率<=0的结果并排序
         valid_trials = [trial for trial in results["sorted_trials"] if -trial.value > 0]
         
-        # 默认按收益率从高到低排序
-        sorted_trials = sorted(valid_trials, key=lambda t: -t.value)  # 收益率从高到低
-        if self.sort_ascending:  # 只有在明确要求升序时才改变顺序
+        # 按收益率排序（注意trial.value是负的收益率）
+        # 默认降序排序（收益率从高到低）
+        sorted_trials = sorted(valid_trials, key=lambda t: t.value, reverse=True)
+        if not self.sort_ascending:  # 如果是降序，再次反转
             sorted_trials.reverse()
         
         # 限制显示数量
@@ -669,6 +670,10 @@ class ProgressWindow:
         @param source: 'code' 表示从代码更新名称，'name' 表示从名称更新代码
         """
         try:
+            # 获取当前日期范围
+            start_date = self.start_date_var.get().strip()
+            end_date = self.end_date_var.get().strip()
+            
             if source == 'code':
                 symbol = self.symbol_var.get().strip()
                 if not symbol:
@@ -678,16 +683,47 @@ class ProgressWindow:
                 # 自动判断证券类型
                 is_etf = len(symbol) == 6 and symbol.startswith(("1", "5"))
                 
+                # 检查是否是新的证券代码
+                is_new_symbol = not os.path.exists(self.config_file) or (
+                    os.path.exists(self.config_file) and 
+                    symbol != self.load_config_value('symbol')
+                )
+                
                 if is_etf:
                     # 获取ETF基金信息
                     df = ak.fund_etf_spot_em()
                     name = df[df['代码'] == symbol]['名称'].values[0]
+                    if is_new_symbol:
+                        # 获取历史数据
+                        hist_df = ak.fund_etf_hist_em(
+                            symbol=symbol,
+                            start_date=start_date.replace('-', ''),
+                            end_date=end_date.replace('-', ''),
+                            adjust="qfq"
+                        )
                 else:
                     # 获取股票信息
                     df = ak.stock_zh_a_spot_em()
                     name = df[df['代码'] == symbol]['名称'].values[0]
+                    if is_new_symbol:
+                        # 获取历史数据
+                        hist_df = ak.stock_zh_a_hist(
+                            symbol=symbol,
+                            start_date=start_date.replace('-', ''),
+                            end_date=end_date.replace('-', ''),
+                            adjust="qfq"
+                        )
                 
                 self.symbol_name_var.set(name)
+                
+                # 如果是新证券，更新价格范围
+                if is_new_symbol and not hist_df.empty:
+                    price_min = hist_df['最低'].min()
+                    price_max = hist_df['最高'].max()
+                    # 设置价格范围（略微扩大范围）
+                    self.price_range_min_var.set(f"{price_min:.3f}")
+                    self.price_range_max_var.set(f"{price_max:.3f}")
+                    print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
                 
             else:  # source == 'name'
                 name = self.symbol_name_var.get().strip()
@@ -700,8 +736,25 @@ class ProgressWindow:
                 etf_match = df_etf[df_etf['名称'].str.contains(name, na=False)]
                 
                 if not etf_match.empty:
-                    self.symbol_var.set(etf_match.iloc[0]['代码'])
+                    new_symbol = etf_match.iloc[0]['代码']
+                    self.symbol_var.set(new_symbol)
                     self.symbol_name_var.set(etf_match.iloc[0]['名称'])
+                    
+                    # 检查是否是新的证券代码
+                    if not os.path.exists(self.config_file) or new_symbol != self.load_config_value('symbol'):
+                        # 获取历史数据
+                        hist_df = ak.fund_etf_hist_em(
+                            symbol=new_symbol,
+                            start_date=start_date.replace('-', ''),
+                            end_date=end_date.replace('-', ''),
+                            adjust="qfq"
+                        )
+                        if not hist_df.empty:
+                            price_min = hist_df['最低'].min()
+                            price_max = hist_df['最高'].max()
+                            self.price_range_min_var.set(f"{price_min:.3f}")
+                            self.price_range_max_var.set(f"{price_max:.3f}")
+                            print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
                     return
                 
                 # 如果ETF中未找到，尝试在股票中查找
@@ -709,8 +762,25 @@ class ProgressWindow:
                 stock_match = df_stock[df_stock['名称'].str.contains(name, na=False)]
                 
                 if not stock_match.empty:
-                    self.symbol_var.set(stock_match.iloc[0]['代码'])
+                    new_symbol = stock_match.iloc[0]['代码']
+                    self.symbol_var.set(new_symbol)
                     self.symbol_name_var.set(stock_match.iloc[0]['名称'])
+                    
+                    # 检查是否是新的证券代码
+                    if not os.path.exists(self.config_file) or new_symbol != self.load_config_value('symbol'):
+                        # 获取历史数据
+                        hist_df = ak.stock_zh_a_hist(
+                            symbol=new_symbol,
+                            start_date=start_date.replace('-', ''),
+                            end_date=end_date.replace('-', ''),
+                            adjust="qfq"
+                        )
+                        if not hist_df.empty:
+                            price_min = hist_df['最低'].min()
+                            price_max = hist_df['最高'].max()
+                            self.price_range_min_var.set(f"{price_min:.3f}")
+                            self.price_range_max_var.set(f"{price_max:.3f}")
+                            print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
                 else:
                     print(f"未找到包含 '{name}' 的证券")
                 
@@ -782,6 +852,17 @@ class ProgressWindow:
             print("已保存配置文件")
         except Exception as e:
             print(f"保存配置文件失败: {e}")
+    
+    def load_config_value(self, key):
+        """获取配置文件中的特定值"""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    return config.get(key)
+        except Exception:
+            pass
+        return None
 
 # 不要在模块级别创建实例
 def create_progress_window():
