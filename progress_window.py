@@ -657,41 +657,89 @@ class ProgressWindow:
         self.trade_details.config(state='normal')
         self.trade_details.delete('1.0', tk.END)
         
-        # 创建并运行策略
-        from stock_grid_optimizer import GridStrategyOptimizer
-        optimizer = GridStrategyOptimizer(
-            symbol=self.symbol_var.get().strip(),
-            start_date=datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d'),
-            end_date=datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d'),
-            min_buy_times=int(self.min_buy_times_var.get()),
-            profit_calc_method=self.segment_mode.get(),
-            connect_segments=self.connect_segments.get()
-        )
+        # 获取时间段
+        start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
+        end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
         
-        # 运行回测并获取结果
-        profit_rate, stats = optimizer.run_backtest(strategy_params)
+        # 获取是否启用多段回测
+        enable_segments = self.enable_segments.get()
         
-        # 显示总体结果
-        self.trade_details.insert(tk.END, f"=== 回测总结 ===\n")
-        self.trade_details.insert(tk.END, f"总收益率: {profit_rate:.2f}%\n")
-        self.trade_details.insert(tk.END, f"总交易次数: {stats['trade_count']}\n\n")
+        if enable_segments:
+            # 使用segment_utils中的方法构建时间段
+            from segment_utils import build_segments
+            segments = build_segments(
+                start_date=start_date,
+                end_date=end_date,
+                min_buy_times=int(self.min_buy_times_var.get())
+            )
+        else:
+            # 单段回测
+            segments = [(start_date, end_date)]
         
-        # 显示每个时间段的结果
-        self.trade_details.insert(tk.END, "=== 分段回测详情 ===\n")
-        for i, segment in enumerate(stats['segment_results'], 1):
-            self.trade_details.insert(tk.END, f"\n第{i}段 "
-                                    f"({segment['start_date'].strftime('%Y-%m-%d')} - "
-                                    f"{segment['end_date'].strftime('%Y-%m-%d')}):\n")
-            self.trade_details.insert(tk.END, f"收益率: {segment['profit_rate']:.2f}%\n")
-            self.trade_details.insert(tk.END, f"交易次数: {segment['trades']}\n")
+        # 用于累计总收益的变量
+        total_profit = 0
+        total_trades = 0
+        failed_trades_summary = {}
+        
+        # 遍历每个时间段
+        for i, (seg_start, seg_end) in enumerate(segments, 1):
+            # 创建策略实例
+            from grid_strategy import GridStrategy
+            strategy = GridStrategy(
+                symbol=self.symbol_var.get().strip(),
+                symbol_name=self.symbol_name_var.get().strip()
+            )
             
-            # 显示失败交易
-            if segment['failed_trades']:
-                self.trade_details.insert(tk.END, "失败交易统计:\n")
-                for reason, count in segment['failed_trades'].items():
-                    if count > 0:
-                        self.trade_details.insert(tk.END, f"  {reason}: {count}次\n")
+            # 设置策略参数
+            for param, value in strategy_params.items():
+                setattr(strategy, param, value)
+            
+            # 设置初始资金和持仓
+            strategy.initial_cash = float(self.initial_cash_var.get())
+            strategy.cash = strategy.initial_cash
+            strategy.initial_positions = int(self.initial_positions_var.get())
+            strategy.positions = strategy.initial_positions
+            
+            # 捕获输出
+            output = io.StringIO()
+            with redirect_stdout(output):
+                # 运行回测并获取收益率
+                profit_rate = strategy.backtest(seg_start, seg_end, verbose=True)
+                
+            # 累计统计信息
+            total_profit += profit_rate
+            total_trades += len(strategy.trades)
+            for reason, count in strategy.failed_trades.items():
+                failed_trades_summary[reason] = failed_trades_summary.get(reason, 0) + count
+            
+            # 显示当前段的结果
+            if enable_segments:
+                self.trade_details.insert(tk.END, f"\n{'='*20} 第{i}段回测 {'='*20}\n")
+                self.trade_details.insert(tk.END, 
+                    f"时间段: {seg_start.strftime('%Y-%m-%d')} 至 {seg_end.strftime('%Y-%m-%d')}\n\n")
+            
+            self.trade_details.insert(tk.END, output.getvalue())
+            self.trade_details.insert(tk.END, f"\n{'='*50}\n")
         
+        # 显示汇总信息（仅在多段回测时显示）
+        if enable_segments and len(segments) > 1:
+            self.trade_details.insert(tk.END, "\n=== 多段回测汇总 ===\n")
+            self.trade_details.insert(tk.END, f"总段数: {len(segments)}\n")
+            
+            # 根据收益计算方式显示
+            if self.segment_mode.get() == "平均值":
+                avg_profit = total_profit / len(segments)
+                self.trade_details.insert(tk.END, f"平均收益率: {avg_profit:.2f}%\n")
+            else:  # 中值
+                self.trade_details.insert(tk.END, f"中值收益率: {total_profit:.2f}%\n")
+            
+            self.trade_details.insert(tk.END, f"总交易次数: {total_trades}\n")
+            self.trade_details.insert(tk.END, "\n失败交易汇总:\n")
+            for reason, count in failed_trades_summary.items():
+                if count > 0:
+                    self.trade_details.insert(tk.END, f"{reason}: {count}次\n")
+        
+        # 恢复只读状态并滚动到顶部
         self.trade_details.config(state='disabled')
         self.trade_details.see('1.0')
     

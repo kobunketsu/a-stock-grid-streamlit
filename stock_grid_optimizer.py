@@ -11,6 +11,7 @@ from tkinter import ttk
 import threading
 import io
 from contextlib import redirect_stdout
+from segment_utils import build_segments, BATCH_TO_DAYS_MAP
 
 class GridStrategyOptimizer:
     """
@@ -307,26 +308,11 @@ class GridStrategyOptimizer:
 
     def _build_segments(self) -> List[Tuple[datetime, datetime]]:
         """构建时间段"""
-        if self.min_buy_times not in self.BATCH_TO_DAYS_MAP:
-            self.min_buy_times = min(max(self.min_buy_times, 1), 5)
-        
-        segment_days = self.BATCH_TO_DAYS_MAP[self.min_buy_times]
-        total_days = len(self.trading_days)
-        
-        if total_days == 0:
-            return [(self.fixed_params['start_date'], self.fixed_params['end_date'])]
-            
-        segments = []
-        start_idx = 0
-        
-        while start_idx < total_days:
-            end_idx = min(start_idx + segment_days, total_days)
-            seg_start = self.trading_days[start_idx]
-            seg_end = self.trading_days[end_idx - 1]
-            segments.append((seg_start, seg_end))
-            start_idx = end_idx
-            
-        return segments
+        return build_segments(
+            start_date=self.fixed_params['start_date'],
+            end_date=self.fixed_params['end_date'],
+            min_buy_times=self.min_buy_times
+        )
 
     def run_backtest(self, params: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
         """运行多段回测"""
@@ -389,7 +375,6 @@ class GridStrategyOptimizer:
         if self.profit_calc_method == "median":
             combined_profit = float(np.median(profit_rates))
         else:  # 默认使用平均值
-            
             combined_profit = float(np.mean(profit_rates))
         
         # 汇总统计信息
