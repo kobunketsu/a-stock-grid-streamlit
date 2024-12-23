@@ -3,7 +3,7 @@ import optuna
 from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, List
 from grid_strategy import GridStrategy  # 导入GridStrategy类
 import akshare as ak
 import tkinter as tk
@@ -56,6 +56,15 @@ class GridStrategyOptimizer:
     # 添加类常量
     REBOUND_RATE_MAX_RATIO = 0.3  # 回调/反弹率相对于主要率的最大比例
     
+    # 添加批次对应的天数映射
+    BATCH_TO_DAYS_MAP = {
+        1: 60,
+        2: 30,
+        3: 20,
+        4: 10,
+        5: 5
+    }
+    
     def __init__(self, symbol: str = "560610",
                  start_date: datetime = datetime(2024, 11, 1), 
                  end_date: datetime = datetime(2024, 12, 20),
@@ -64,8 +73,10 @@ class GridStrategyOptimizer:
                  ma_protection: bool = False,
                  initial_positions: int = 50000,
                  initial_cash: int = 50000,
-                 min_buy_times: int = 10,
-                 price_range: tuple = (0.910, 1.010)):
+                 min_buy_times: int = 2,  # 默认2次
+                 price_range: tuple = (0.910, 1.010),
+                 profit_calc_method: str = "mean",  # 新增：收益计算方法
+                 connect_segments: bool = False):  # 新增：是否衔接资金和持仓
         
         # 先初始化基本参数
         self.start_date = start_date
@@ -165,6 +176,13 @@ class GridStrategyOptimizer:
         }
 
         self.progress_window = None  # 添加progress_window属性
+
+        self.min_buy_times = min_buy_times
+        self.profit_calc_method = profit_calc_method
+        self.connect_segments = connect_segments
+        
+        # 获取交易日列表
+        self.trading_days = self._get_trading_days(start_date, end_date)
 
     def _validate_price_range(self, price_range: tuple) -> bool:
         """
@@ -274,41 +292,117 @@ class GridStrategyOptimizer:
         else:
             print(f"保持原有价格范围: {default_range}")
 
+    def _get_trading_days(self, start_date: datetime, end_date: datetime) -> pd.DatetimeIndex:
+        """获取交易日列表（剔除非交易日）"""
+        try:
+            df_calendar = ak.tool_trade_date_hist_sina()
+            df_calendar['trade_date'] = pd.to_datetime(df_calendar['trade_date'])
+            mask = (df_calendar['trade_date'] >= pd.to_datetime(start_date)) & \
+                   (df_calendar['trade_date'] <= pd.to_datetime(end_date))
+            trading_days_df = df_calendar.loc[mask].sort_values('trade_date')
+            return pd.DatetimeIndex(trading_days_df['trade_date'].values)
+        except Exception as e:
+            print(f"获取交易日历失败: {e}")
+            return pd.date_range(start=start_date, end=end_date, freq='B')
+
+    def _build_segments(self) -> List[Tuple[datetime, datetime]]:
+        """构建时间段"""
+        if self.min_buy_times not in self.BATCH_TO_DAYS_MAP:
+            self.min_buy_times = min(max(self.min_buy_times, 1), 5)
+        
+        segment_days = self.BATCH_TO_DAYS_MAP[self.min_buy_times]
+        total_days = len(self.trading_days)
+        
+        if total_days == 0:
+            return [(self.fixed_params['start_date'], self.fixed_params['end_date'])]
+            
+        segments = []
+        start_idx = 0
+        
+        while start_idx < total_days:
+            end_idx = min(start_idx + segment_days, total_days)
+            seg_start = self.trading_days[start_idx]
+            seg_end = self.trading_days[end_idx - 1]
+            segments.append((seg_start, seg_end))
+            start_idx = end_idx
+            
+        return segments
+
     def run_backtest(self, params: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
-        """
-        运行回测并返回收益率和统计信息
-        """
-        strategy = GridStrategy(
-            symbol=self.fixed_params["symbol"],
-            symbol_name=self.fixed_params["symbol_name"]
-        )
+        """运行多段回测"""
+        segments = self._build_segments()
+        segment_results = []
         
-        # 设置固定参数
-        strategy.base_price = self.fixed_params["base_price"]
-        strategy.price_range = self.fixed_params["price_range"]
-        strategy.initial_positions = self.fixed_params["initial_positions"]
-        strategy.positions = strategy.initial_positions
-        strategy.initial_cash = self.fixed_params["initial_cash"]
-        strategy.cash = strategy.initial_cash
+        # 初始资金和持仓
+        current_cash = self.fixed_params["initial_cash"]
+        current_positions = self.fixed_params["initial_positions"]
         
-        # 设置可调参数
-        strategy.up_sell_rate = params["up_sell_rate"]
-        strategy.down_buy_rate = params["down_buy_rate"]
-        strategy.up_callback_rate = params["up_callback_rate"]
-        strategy.down_rebound_rate = params["down_rebound_rate"]
-        strategy.shares_per_trade = params["shares_per_trade"]
+        for i, (seg_start, seg_end) in enumerate(segments):
+            strategy = GridStrategy(
+                symbol=self.fixed_params["symbol"],
+                symbol_name=self.fixed_params["symbol_name"]
+            )
+            
+            # 设置固定参数
+            strategy.base_price = self.fixed_params["base_price"]
+            strategy.price_range = self.fixed_params["price_range"]
+            
+            # 根据是否衔接设置初始资金和持仓
+            if self.connect_segments and i > 0:
+                strategy.initial_positions = current_positions
+                strategy.positions = current_positions
+                strategy.initial_cash = current_cash
+                strategy.cash = current_cash
+            else:
+                strategy.initial_positions = self.fixed_params["initial_positions"]
+                strategy.positions = strategy.initial_positions
+                strategy.initial_cash = self.fixed_params["initial_cash"]
+                strategy.cash = strategy.initial_cash
+            
+            # 设置优化参数
+            for param, value in params.items():
+                setattr(strategy, param, value)
+            
+            # 执行回测
+            profit_rate = strategy.backtest(
+                start_date=seg_start,
+                end_date=seg_end,
+                verbose=False
+            )
+            
+            # 记录本段结果
+            segment_results.append({
+                'start_date': seg_start,
+                'end_date': seg_end,
+                'profit_rate': profit_rate,
+                'trades': len(strategy.trades),
+                'failed_trades': strategy.failed_trades
+            })
+            
+            # 如果需要衔接，更新资金和持仓
+            if self.connect_segments:
+                current_cash = strategy.cash
+                current_positions = strategy.positions
         
-        # 使用固定的时间区间执行回测
-        strategy.backtest(
-            start_date=self.fixed_params["start_date"],
-            end_date=self.fixed_params["end_date"]
-        )
+        # 计算综合收益率
+        profit_rates = [r['profit_rate'] for r in segment_results]
+        if self.profit_calc_method == "median":
+            combined_profit = float(np.median(profit_rates))
+        else:  # 默认使用平均值
+            combined_profit = float(np.mean(profit_rates))
         
-        # 获取回测统计信息
+        # 汇总统计信息
+        total_trades = sum(r['trades'] for r in segment_results)
+        combined_failed_trades = {}
+        for r in segment_results:
+            for reason, count in r['failed_trades'].items():
+                combined_failed_trades[reason] = combined_failed_trades.get(reason, 0) + count
+        
         stats = {
-            "profit_rate": strategy.final_profit_rate,
-            "trade_count": len(strategy.trades),
-            "failed_trades": strategy.failed_trades,
+            "profit_rate": combined_profit,
+            "trade_count": total_trades,
+            "failed_trades": combined_failed_trades,
+            "segment_results": segment_results,
             "params": params,
             "backtest_period": {
                 "start": self.fixed_params["start_date"].strftime('%Y-%m-%d'),
@@ -316,7 +410,7 @@ class GridStrategyOptimizer:
             }
         }
         
-        return strategy.final_profit_rate, stats
+        return combined_profit, stats
 
     def objective(self, trial: optuna.Trial) -> float:
         """
@@ -588,9 +682,7 @@ class GridStrategyOptimizer:
         return optimization_results
 
     def print_results(self, results: Dict[str, Any], top_n: int = 5) -> None:
-        """
-        打印优化结果并运行最佳参数组合的详细回测
-        """
+        """打印优化结果"""
         # 创建一个StringIO对象来捕获输出
         output = io.StringIO()
         with redirect_stdout(output):

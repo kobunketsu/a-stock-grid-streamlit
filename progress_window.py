@@ -202,6 +202,30 @@ class ProgressWindow:
         top_n_entry = ttk.Entry(parent, textvariable=self.top_n_var, width=12)
         top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
+        # 在最少买入次数后添加多段回测设置框架
+        segments_frame = ttk.LabelFrame(parent, text="多段回测设置", padding=5)
+        segments_frame.grid(row=9, column=0, columnspan=2, sticky=tk.EW, pady=5)
+        
+        # 收益计算方法选择
+        ttk.Label(segments_frame, text="收益计算:").grid(row=0, column=0, sticky=tk.W, pady=2)
+        self.profit_calc_method_var = tk.StringVar(value="mean")
+        profit_calc_combo = ttk.Combobox(
+            segments_frame,
+            textvariable=self.profit_calc_method_var,
+            values=["mean", "median"],
+            width=8,
+            state="readonly"
+        )
+        profit_calc_combo.grid(row=0, column=1, sticky=tk.W, pady=2)
+        
+        # 资金持仓衔接选项
+        self.connect_segments_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            segments_frame,
+            text="衔接资金持仓",
+            variable=self.connect_segments_var
+        ).grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
         # 修改开始优化按钮的样式和位置
         self.start_button = ttk.Button(
             parent, 
@@ -310,7 +334,9 @@ class ProgressWindow:
                 initial_positions=initial_positions,
                 initial_cash=initial_cash,
                 min_buy_times=min_buy_times,
-                price_range=price_range
+                price_range=price_range,
+                profit_calc_method=self.profit_calc_method_var.get(),
+                connect_segments=self.connect_segments_var.get()
             )
             
             # 将进度窗口传递给优化器
@@ -363,17 +389,65 @@ class ProgressWindow:
         """捕获并存储输出文本"""
         self.captured_output.append(text)
     
-    def show_trade_details(self):
-        """显示交易详情"""
-        if self.trade_details:
-            # 临时启用文本框以更新内容
-            self.trade_details.config(state='normal')
-            self.trade_details.delete('1.0', tk.END)
-            for text in self.captured_output:
-                self.trade_details.insert(tk.END, text + '\n')
-            self.trade_details.see(tk.END)  # 滚动到最后
-            # 恢复只读状态
-            self.trade_details.config(state='disabled')
+    def show_trade_details(self, trial):
+        """显示特定参数组合的策略详情"""
+        # 清空现有内容
+        self.trade_details.config(state='normal')
+        self.trade_details.delete('1.0', tk.END)
+        
+        # 获取参数和收益率
+        params = trial.params
+        profit_rate = -trial.value
+        
+        # 显示参数组合信息
+        self.trade_details.insert(tk.END, "=== 参数组合详情 ===\n")
+        self.trade_details.insert(tk.END, f"总收益率: {profit_rate:.2f}%\n\n")
+        
+        # 参数名称映射
+        param_names = {
+            'up_sell_rate': '上涨卖出',
+            'down_buy_rate': '下跌买入',
+            'up_callback_rate': '上涨回调',
+            'down_rebound_rate': '下跌反弹',
+            'shares_per_trade': '单次交易股数'
+        }
+        
+        # 显示参数详情
+        self.trade_details.insert(tk.END, "参数详情:\n")
+        for key, value in params.items():
+            if key == 'shares_per_trade':
+                self.trade_details.insert(tk.END, f"{param_names[key]}: {value:,}\n")
+            else:
+                self.trade_details.insert(tk.END, f"{param_names[key]}: {value*100:.2f}%\n")
+        
+        # 显示交易统计信息
+        self.trade_details.insert(tk.END, f"\n交易次数: {trial.user_attrs.get('trade_count', 'N/A')}\n")
+        
+        # 显示分段回测结果（如果有）
+        if 'segment_results' in trial.user_attrs:
+            self.trade_details.insert(tk.END, "\n=== 分段回测详情 ===\n")
+            for i, segment in enumerate(trial.user_attrs['segment_results'], 1):
+                self.trade_details.insert(tk.END, f"\n第{i}段回测:\n")
+                self.trade_details.insert(tk.END, f"时间段: {segment['start_date']} - {segment['end_date']}\n")
+                self.trade_details.insert(tk.END, f"收益率: {segment['profit_rate']:.2f}%\n")
+                self.trade_details.insert(tk.END, f"交易次数: {segment['trades']}\n")
+                
+                # 显示失败交易统计（如果有）
+                if segment.get('failed_trades'):
+                    self.trade_details.insert(tk.END, "\n失败交易统计:\n")
+                    for reason, count in segment['failed_trades'].items():
+                        if count > 0:
+                            self.trade_details.insert(tk.END, f"  {reason}: {count}次\n")
+        
+        # 显示交易记录（如果有）
+        if 'trade_records' in trial.user_attrs:
+            self.trade_details.insert(tk.END, "\n=== 交易记录 ===\n")
+            for record in trial.user_attrs['trade_records']:
+                self.trade_details.insert(tk.END, f"{record}\n")
+        
+        # 恢复只读状态并滚动到顶部
+        self.trade_details.config(state='disabled')
+        self.trade_details.see('1.0')
     
     def enable_trade_details_button(self):
         """启用交易详情按钮"""
@@ -565,27 +639,39 @@ class ProgressWindow:
         self.trade_details.delete('1.0', tk.END)
         
         # 创建并运行策略
-        from grid_strategy import GridStrategy
-        strategy = GridStrategy(
+        optimizer = GridStrategyOptimizer(
             symbol=self.symbol_var.get().strip(),
-            symbol_name="ETF"  # 可以从接口获取实际名称
+            start_date=datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d'),
+            end_date=datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d'),
+            min_buy_times=int(self.min_buy_times_var.get()),
+            profit_calc_method=self.profit_calc_method_var.get(),
+            connect_segments=self.connect_segments_var.get()
         )
         
-        # 设置策略参数
-        for param, value in strategy_params.items():
-            setattr(strategy, param, value)
+        # 运行回测并获取结果
+        profit_rate, stats = optimizer.run_backtest(strategy_params)
         
-        # 运行回测
-        start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
-        end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
+        # 显示总体结果
+        self.trade_details.insert(tk.END, f"=== 回测总结 ===\n")
+        self.trade_details.insert(tk.END, f"总收益率: {profit_rate:.2f}%\n")
+        self.trade_details.insert(tk.END, f"总交易次数: {stats['trade_count']}\n\n")
         
-        # 捕获输出
-        output = io.StringIO()
-        with redirect_stdout(output):
-            strategy.backtest(start_date, end_date, verbose=True)
+        # 显示每个时间段的结果
+        self.trade_details.insert(tk.END, "=== 分段回测详情 ===\n")
+        for i, segment in enumerate(stats['segment_results'], 1):
+            self.trade_details.insert(tk.END, f"\n第{i}段 "
+                                    f"({segment['start_date'].strftime('%Y-%m-%d')} - "
+                                    f"{segment['end_date'].strftime('%Y-%m-%d')}):\n")
+            self.trade_details.insert(tk.END, f"收益率: {segment['profit_rate']:.2f}%\n")
+            self.trade_details.insert(tk.END, f"交易次数: {segment['trades']}\n")
+            
+            # 显示失败交易
+            if segment['failed_trades']:
+                self.trade_details.insert(tk.END, "失败交易统计:\n")
+                for reason, count in segment['failed_trades'].items():
+                    if count > 0:
+                        self.trade_details.insert(tk.END, f"  {reason}: {count}次\n")
         
-        # 显示结果
-        self.trade_details.insert(tk.END, output.getvalue())
         self.trade_details.config(state='disabled')
         self.trade_details.see('1.0')
     
@@ -874,6 +960,13 @@ class ProgressWindow:
                 # 将配置值设置为类属性
                 for key, value in config.items():
                     setattr(self, key, value)
+                    
+                # 加载多段回测设置
+                if 'profit_calc_method' in config:
+                    self.profit_calc_method_var.set(config['profit_calc_method'])
+                if 'connect_segments' in config:
+                    self.connect_segments_var.set(config['connect_segments'])
+                    
                 print("已加载配置文件")
         except Exception as e:
             print(f"加载配置文件失败: {e}")
@@ -894,7 +987,9 @@ class ProgressWindow:
                 'price_range_min': self.price_range_min_var.get(),
                 'price_range_max': self.price_range_max_var.get(),
                 'n_trials': self.n_trials_var.get(),
-                'top_n': self.top_n_var.get()
+                'top_n': self.top_n_var.get(),
+                'profit_calc_method': self.profit_calc_method_var.get(),
+                'connect_segments': self.connect_segments_var.get()
             }
             
             with open(self.config_file, 'w', encoding='utf-8') as f:
