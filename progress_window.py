@@ -233,6 +233,10 @@ class ProgressWindow:
         )
         self.segment_mode_combo.grid(row=1, column=1, sticky=tk.W, pady=2)
         
+        # 添加天数显示标签
+        self.segment_days_label = ttk.Label(segments_frame, text="")
+        self.segment_days_label.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
         # 资金持仓衔接选项
         self.connect_segments = tk.BooleanVar(value=False)
         self.connect_checkbox = ttk.Checkbutton(
@@ -240,8 +244,11 @@ class ProgressWindow:
             text="子区间资金和持仓衔接",
             variable=self.connect_segments
         )
-        self.connect_checkbox.grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=2)
-
+        self.connect_checkbox.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
+        
+        # 绑定最少买入次数变化事件
+        self.min_buy_times_var.trace_add('write', self.update_segment_days)
+        
         # 开始优化按钮
         self.start_button = ttk.Button(
             parent, 
@@ -1119,11 +1126,29 @@ class ProgressWindow:
         return None
 
     def toggle_segment_options(self):
-        """切换分段收益相关选项的启用状态"""
-        state = 'normal' if self.enable_segments.get() else 'disabled'
-        self.segment_label['state'] = state
-        self.segment_mode_combo['state'] = 'readonly' if self.enable_segments.get() else 'disabled'
-        self.connect_checkbox.state(['!disabled' if self.enable_segments.get() else 'disabled'])
+        """切换多段回测选项的启用状态"""
+        enabled = self.enable_segments.get()
+        
+        # 更新控件状态
+        self.segment_label.config(state='normal' if enabled else 'disabled')
+        self.segment_mode_combo.config(state='readonly' if enabled else 'disabled')
+        self.connect_checkbox.config(state='normal' if enabled else 'disabled')
+        
+        # 更新天数显示
+        self.update_segment_days()
+
+    def update_segment_days(self, *args):
+        """更新分段天数显示"""
+        if self.enable_segments.get():
+            try:
+                min_buy_times = int(self.min_buy_times_var.get())
+                from segment_utils import get_segment_days
+                days = get_segment_days(min_buy_times)
+                self.segment_days_label.config(text=f"每段区间: {days}个交易日")
+            except ValueError:
+                self.segment_days_label.config(text="")
+        else:
+            self.segment_days_label.config(text="")
 
 # 不要在模块级别创建实例
 def create_progress_window():

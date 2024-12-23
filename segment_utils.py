@@ -46,3 +46,9 @@ def build_segments(start_date: datetime, end_date: datetime, min_buy_times: int)
         start_idx = end_idx
     
     return segments 
+
+def get_segment_days(min_buy_times: int) -> int:
+    """获取对应的天数"""
+    if min_buy_times not in BATCH_TO_DAYS_MAP:
+        min_buy_times = min(max(min_buy_times, 1), 5)
+    return BATCH_TO_DAYS_MAP[min_buy_times] 
