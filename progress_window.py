@@ -7,6 +7,8 @@ from contextlib import redirect_stdout
 import threading
 import akshare as ak
 import pandas as pd
+import json
+import os
 
 class ProgressWindow:
     def __init__(self, total_trials):
@@ -41,25 +43,30 @@ class ProgressWindow:
         self.sort_ascending = False  # 修改默认排序方向为降序
         self.current_results = []   # 存储当前的结果列表
         
+        self.config_file = "grid_strategy_config.json"  # 配置文件路径
+        
     def create_window(self):
         self.root = tk.Tk()
         self.root.title("网格策略优化器")
         self.root.geometry("1200x800")
         
-        # 在创建窗口后初始化变量
-        self.symbol_var = tk.StringVar(self.root, value="159300")
-        self.symbol_name_var = tk.StringVar(self.root)  # 新增证券名称变量
-        self.start_date_var = tk.StringVar(self.root, value="2024-10-10")
-        self.end_date_var = tk.StringVar(self.root, value="2024-12-20")
-        self.ma_period_var = tk.StringVar(self.root, value="55")
-        self.ma_protection_var = tk.BooleanVar(self.root, value=True)
-        self.initial_positions_var = tk.StringVar(self.root, value="0")
-        self.initial_cash_var = tk.StringVar(self.root, value="100000")
-        self.min_buy_times_var = tk.StringVar(self.root, value="2")
-        self.price_range_min_var = tk.StringVar(value="3.9")
-        self.price_range_max_var = tk.StringVar(value="4.3")
-        self.n_trials_var = tk.StringVar(value="100")
-        self.top_n_var = tk.StringVar(value="5")
+        # 初始化变量前先加载配置
+        self.load_config()
+        
+        # 如果没有加载到配置，使用默认值初始化变量
+        self.symbol_var = tk.StringVar(self.root, value=getattr(self, 'symbol', "159300"))
+        self.symbol_name_var = tk.StringVar(self.root, value=getattr(self, 'symbol_name', ""))
+        self.start_date_var = tk.StringVar(self.root, value=getattr(self, 'start_date', "2024-10-10"))
+        self.end_date_var = tk.StringVar(self.root, value=getattr(self, 'end_date', "2024-12-20"))
+        self.ma_period_var = tk.StringVar(self.root, value=getattr(self, 'ma_period', "55"))
+        self.ma_protection_var = tk.BooleanVar(self.root, value=getattr(self, 'ma_protection', True))
+        self.initial_positions_var = tk.StringVar(self.root, value=getattr(self, 'initial_positions', "0"))
+        self.initial_cash_var = tk.StringVar(self.root, value=getattr(self, 'initial_cash', "100000"))
+        self.min_buy_times_var = tk.StringVar(self.root, value=getattr(self, 'min_buy_times', "2"))
+        self.price_range_min_var = tk.StringVar(value=getattr(self, 'price_range_min', "3.9"))
+        self.price_range_max_var = tk.StringVar(value=getattr(self, 'price_range_max', "4.3"))
+        self.n_trials_var = tk.StringVar(value=getattr(self, 'n_trials', "100"))
+        self.top_n_var = tk.StringVar(value=getattr(self, 'top_n', "5"))
         
         # 创建主布局框架
         main_frame = ttk.Frame(self.root)
@@ -341,13 +348,14 @@ class ProgressWindow:
     
     def _on_closing(self):
         """窗口关闭时的处理"""
-        self.is_closed = True
-        if hasattr(self, 'optimization_thread') and self.optimization_thread.is_alive():
-            # 等待优化线程结束
-            self.label["text"] = "正在停止优化..."
-            self.root.after(100, self._check_thread_and_close)
-        else:
-            self.root.destroy()
+        try:
+            self.save_config()  # 保存配置
+        except Exception as e:
+            print(f"保存配置时发生错误: {e}")
+        finally:
+            self.is_closed = True
+            if self.root:
+                self.root.destroy()
     
     def _check_thread_and_close(self):
         """检查优化线程是否结束，如果结束则关闭窗口"""
@@ -735,6 +743,45 @@ class ProgressWindow:
         widget.selection_range(0, tk.END)  # 选中所有文本
         # 强制更新UI
         widget.update_idletasks()
+    
+    def load_config(self):
+        """加载配置文件"""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    
+                # 将配置值设置为类属性
+                for key, value in config.items():
+                    setattr(self, key, value)
+                print("已加载配置文件")
+        except Exception as e:
+            print(f"加载配置文件失败: {e}")
+    
+    def save_config(self):
+        """保存配置到文件"""
+        try:
+            config = {
+                'symbol': self.symbol_var.get(),
+                'symbol_name': self.symbol_name_var.get(),
+                'start_date': self.start_date_var.get(),
+                'end_date': self.end_date_var.get(),
+                'ma_period': self.ma_period_var.get(),
+                'ma_protection': self.ma_protection_var.get(),
+                'initial_positions': self.initial_positions_var.get(),
+                'initial_cash': self.initial_cash_var.get(),
+                'min_buy_times': self.min_buy_times_var.get(),
+                'price_range_min': self.price_range_min_var.get(),
+                'price_range_max': self.price_range_max_var.get(),
+                'n_trials': self.n_trials_var.get(),
+                'top_n': self.top_n_var.get()
+            }
+            
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=4)
+            print("已保存配置文件")
+        except Exception as e:
+            print(f"保存配置文件失败: {e}")
 
 # 不要在模块级别创建实例
 def create_progress_window():
