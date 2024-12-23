@@ -658,6 +658,7 @@ class ProgressWindow:
         self.trade_details.delete('1.0', tk.END)
         
         # 创建并运行策略
+        from stock_grid_optimizer import GridStrategyOptimizer
         optimizer = GridStrategyOptimizer(
             symbol=self.symbol_var.get().strip(),
             start_date=datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d'),
@@ -769,12 +770,11 @@ class ProgressWindow:
             param_label.pack(padx=5, pady=5)
             
             # 添加查看详情按钮
-            detail_button = ttk.Button(
-                result_frame,
-                text="查看交易详情",
-                command=lambda t=trial: self.show_trade_details(t)
-            )
-            detail_button.pack(pady=(0, 5))
+            # 添加查看按钮
+            detailbutton = ttk.Button(result_frame, text="查看详情", 
+                      command=lambda p=trial.params: self.show_strategy_details(p)).pack(
+                          side=tk.RIGHT, padx=5)
+
         
         # 更新画布滚动区域
         self.params_container.update_idletasks()
