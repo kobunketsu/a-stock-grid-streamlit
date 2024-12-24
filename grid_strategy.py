@@ -27,6 +27,8 @@ class GridStrategy:
         self.final_profit_rate = 0.0
         self.multiple_trade = True
         self.verbose = False
+        self.ma_period = None
+        self.ma_protection = False
 
     def buy(self, price, time):
         """
@@ -79,6 +81,9 @@ class GridStrategy:
         return False
 
     def backtest(self, start_date=None, end_date=None, verbose=False):
+        """
+        执行回测
+        """
         # 处理日期参数
         if start_date is None:
             end_date = datetime.now()
@@ -261,6 +266,28 @@ class GridStrategy:
                 print("无交易记录")
         
         return self.final_profit_rate
+
+    def _check_ma_protection(self, price: float, ma_price: float, is_buy: bool) -> bool:
+        """
+        检查均线保护条件
+        
+        Args:
+            price (float): 当前价格
+            ma_price (float): 均线价格
+            is_buy (bool): 是否为买入操作
+            
+        Returns:
+            bool: 是否允许交易
+        """
+        if not self.ma_protection or pd.isna(ma_price):
+            return True
+            
+        if is_buy:
+            # 买入时价格应低于均线
+            return price <= ma_price
+        else:
+            # 卖出时价格应高于均线
+            return price >= ma_price
 
 if __name__ == "__main__":
     strategy = GridStrategy()

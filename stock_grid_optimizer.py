@@ -624,11 +624,20 @@ class GridStrategyOptimizer:
         """
         refined_ranges = {}
         for param, value in best_params.items():
-            refined_ranges[param] = {
-                "min": max(value * 0.8, self.param_ranges[param]["min"]),
-                "max": min(value * 1.2, self.param_ranges[param]["max"]),
-                "step": self.param_ranges[param]["step"]
-            }
+            if param == "shares_per_trade":
+                # 整数参数特殊处理
+                refined_ranges[param] = {
+                    "min": max(int(value * 0.8), self.param_ranges[param]["min"]),
+                    "max": min(int(value * 1.2), self.param_ranges[param]["max"]),
+                    "step": self.param_ranges[param]["step"]
+                }
+            else:
+                # 浮点数参数处理
+                refined_ranges[param] = {
+                    "min": max(value * 0.8, self.param_ranges[param]["min"]),
+                    "max": min(value * 1.2, self.param_ranges[param]["max"]),
+                    "step": self.param_ranges[param]["step"]
+                }
         return refined_ranges
 
     def _refined_objective(self, trial: optuna.Trial, refined_ranges: Dict[str, Dict[str, float]]) -> float:
