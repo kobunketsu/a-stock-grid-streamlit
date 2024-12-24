@@ -1,0 +1,6 @@
+streamlit==1.29.0
+akshare==1.11.22
+pandas==2.1.4
+numpy==1.26.2
+optuna==3.4.0
+plotly==5.18.0 
