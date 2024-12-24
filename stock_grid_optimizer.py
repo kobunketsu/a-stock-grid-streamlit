@@ -139,43 +139,105 @@ class GridStrategyOptimizer:
                                   (min_buy_times * base_price))
         max_shares = min(max_shares_by_cash, max_shares_by_times)
 
-        # 确保最大股数不小于最小交易股数
-        min_shares_per_trade = 1000
+        # 根据证券类型设置最小交易股数
+        min_shares_per_trade = 1000 if self.security_type == "ETF" else 100
         if max_shares < min_shares_per_trade:
             max_shares = min_shares_per_trade
+
+
 
         print(f"基于初始资金计算的最大股数: {max_shares_by_cash}")
         print(f"基于最少买入次数计算的最大股数: {max_shares_by_times}")
         print(f"最终使用的最大交易股数: {max_shares}")
         
-        # 可调参数的范围定义
-        self.param_ranges = {
-            "up_sell_rate": {
-                "min": 0.003,
-                "max": 0.03,
-                "step": 0.0005
-            },
-            "down_buy_rate": {
-                "min": 0.003,
-                "max": 0.03,
-                "step": 0.0005
-            },
-            "up_callback_rate": {
-                "min": 0.001,
-                "max": 0.01,
-                "step": 0.0005
-            },
-            "down_rebound_rate": {
-                "min": 0.001,
-                "max": 0.01,
-                "step": 0.0005
-            },
-            "shares_per_trade": {
-                "min": min_shares_per_trade,
-                "max": max_shares,
-                "step": 1000
+        # 根据证券类型设置不同的参数范围
+        if self.security_type == "ETF":
+            # ETF基金参数范围
+            self.param_ranges = {
+                "up_sell_rate": {
+                    "min": 0.003,
+                    "max": 0.03,
+                    "step": 0.0005
+                },
+                "down_buy_rate": {
+                    "min": 0.003,
+                    "max": 0.03,
+                    "step": 0.0005
+                },
+                "up_callback_rate": {
+                    "min": 0.001,
+                    "max": 0.01,
+                    "step": 0.0005
+                },
+                "down_rebound_rate": {
+                    "min": 0.001,
+                    "max": 0.01,
+                    "step": 0.0005
+                },
+                "shares_per_trade": {
+                    "min": 1000,
+                    "max": max_shares,
+                    "step": 1000
+                }
             }
-        }
+        else:
+            if symbol.startswith("300") :
+                self.param_ranges = {
+                    "up_sell_rate": {
+                        "min": 0.003,
+                        "max": 0.2,
+                        "step": 0.0005
+                    },
+                    "down_buy_rate": {
+                        "min": 0.003,
+                        "max": 0.2,
+                        "step": 0.0005
+                    },
+                    "up_callback_rate": {
+                        "min": 0.001,
+                        "max": 0.03,
+                        "step": 0.0005
+                    },
+                    "down_rebound_rate": {
+                        "min": 0.001,
+                        "max": 0.03,
+                        "step": 0.0005
+                    },
+                    "shares_per_trade": {
+                        "min": 100,
+                        "max": max_shares,
+                        "step": 100
+                    }
+                }                
+            else:
+                # 股票参数范围
+                self.param_ranges = {
+                    "up_sell_rate": {
+                        "min": 0.003,
+                        "max": 0.1,
+                        "step": 0.0005
+                    },
+                    "down_buy_rate": {
+                        "min": 0.003,
+                        "max": 0.1,
+                        "step": 0.0005
+                    },
+                    "up_callback_rate": {
+                        "min": 0.001,
+                        "max": 0.03,
+                        "step": 0.0005
+                    },
+                    "down_rebound_rate": {
+                        "min": 0.001,
+                        "max": 0.03,
+                        "step": 0.0005
+                    },
+                    "shares_per_trade": {
+                        "min": 100,
+                        "max": max_shares,
+                        "step": 100
+                    }
+                }
 
         self.progress_window = None  # 添加progress_window属性
 
@@ -694,8 +756,8 @@ class GridStrategyOptimizer:
             
             # 设置最佳参数
             best_strategy.up_sell_rate = results["best_params"]["up_sell_rate"]
-            best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
             best_strategy.up_callback_rate = results["best_params"]["up_callback_rate"]
+            best_strategy.down_buy_rate = results["best_params"]["down_buy_rate"]
             best_strategy.down_rebound_rate = results["best_params"]["down_rebound_rate"]
             best_strategy.shares_per_trade = results["best_params"]["shares_per_trade"]
             
