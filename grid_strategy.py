@@ -230,8 +230,8 @@ class GridStrategy:
             print(f"基准价格: {self.base_price:.3f}")
             print(f"价格区间: {self.price_range[0]:.3f} - {self.price_range[1]:.3f}")
             print(f"每上涨卖出: {self.up_sell_rate*100:.2f}%")
+            print(f"上涨回调: {self.up_callback_rate*100:.2f}%")            
             print(f"每下跌买入: {self.down_buy_rate*100:.2f}%")
-            print(f"上涨回调: {self.up_callback_rate*100:.2f}%")
             print(f"下跌反弹: {self.down_rebound_rate*100:.2f}%")
             print(f"单次交易股数: {self.shares_per_trade:,}")
             

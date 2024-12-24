@@ -443,8 +443,8 @@ class ProgressWindow:
         # 参数名称映射
         param_names = {
             'up_sell_rate': '上涨卖出',
+            'up_callback_rate': '上涨回调',            
             'down_buy_rate': '下跌买入',
-            'up_callback_rate': '上涨回调',
             'down_rebound_rate': '下跌反弹',
             'shares_per_trade': '单次交易股数'
         }
@@ -809,8 +809,8 @@ class ProgressWindow:
         # 参数名称映射
         param_names = {
             'up_sell_rate': '上涨卖出',
+            'up_callback_rate': '上涨回调',            
             'down_buy_rate': '下跌买入',
-            'up_callback_rate': '上涨回调',
             'down_rebound_rate': '下跌反弹',
             'shares_per_trade': '单次交易股数'
         }
@@ -829,7 +829,9 @@ class ProgressWindow:
             
             # 添加参数信息
             param_text = ""
-            for key, value in params.items():
+            # 按照param_names的顺序显示参数
+            for key in param_names.keys():
+                value = params[key]
                 if key == 'shares_per_trade':
                     param_text += f"{param_names[key]}: {value:,}\n"
                 else:
