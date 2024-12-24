@@ -6,14 +6,14 @@ class GridStrategy:
     def __init__(self, symbol="560610", symbol_name="国开ETF"):
         self.symbol = symbol
         self.symbol_name = symbol_name
-        self.base_price = 0.960  # 基准价
-        self.price_range = (0.910, 1.010)  # 价格区间
-        self.up_sell_rate = 0.0045  # 上涨卖出比例
-        self.up_callback_rate = 0.01  # 上涨回调比例
-        self.down_buy_rate = 0.01 # 下跌买入比例
-        self.down_rebound_rate = 0.004  # 下跌反弹比例
-        self.shares_per_trade = 50000  # 每次交易股数
-        self.initial_positions = 50000  # 初始持仓数量
+        self.base_price = None  # 移除硬编码的默认值
+        self.price_range = None  # 移除硬编码的默认值
+        self.up_sell_rate = 0.0045
+        self.up_callback_rate = 0.01
+        self.down_buy_rate = 0.01
+        self.down_rebound_rate = 0.004
+        self.shares_per_trade = 50000
+        self.initial_positions = 50000
         self.positions = self.initial_positions
         self.initial_cash = 50000
         self.cash = self.initial_cash
@@ -25,8 +25,8 @@ class GridStrategy:
             "买入价格超范围": 0
         }
         self.final_profit_rate = 0.0
-        self.multiple_trade = True  # 启用倍数交易
-        self.verbose = False  # 添加 verbose 属性，默认为 False
+        self.multiple_trade = True
+        self.verbose = False
 
     def buy(self, price, time):
         """

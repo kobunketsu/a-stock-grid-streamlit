@@ -78,6 +78,8 @@ class ProgressWindow:
         self.price_range_max_var = tk.StringVar(value=getattr(self, 'price_range_max', "4.3"))
         self.n_trials_var = tk.StringVar(value=getattr(self, 'n_trials', "100"))
         self.top_n_var = tk.StringVar(value=getattr(self, 'top_n', "5"))
+        self.profit_calc_method_var = tk.StringVar(self.root, value=getattr(self, 'profit_calc_method', "mean"))
+        self.connect_segments_var = tk.BooleanVar(self.root, value=getattr(self, 'connect_segments', False))
         
         # 创建主布局框架
         main_frame = ttk.Frame(self.root)
@@ -1040,15 +1042,16 @@ class ProgressWindow:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
                     
-                # 将配置值设置为类属性
+                # 将配置值设置为类属性，跳过None值
                 for key, value in config.items():
-                    setattr(self, key, value)
-                    
+                    if value is not None:
+                        setattr(self, key, value)
+                        
                 # 加载多段回测设置
-                if 'profit_calc_method' in config:
-                    self.profit_calc_method_var.set(config['profit_calc_method'])
-                if 'connect_segments' in config:
-                    self.connect_segments_var.set(config['connect_segments'])
+                # if 'profit_calc_method' in config and config['profit_calc_method'] is not None:
+                #     self.profit_calc_method_var.set(config['profit_calc_method'])
+                # if 'connect_segments' in config and config['connect_segments'] is not None:
+                #     self.connect_segments_var.set(config['connect_segments'])
                     
                 print("已加载配置文件")
         except Exception as e:
@@ -1074,6 +1077,9 @@ class ProgressWindow:
                 'profit_calc_method': self.profit_calc_method_var.get(),
                 'connect_segments': self.connect_segments_var.get()
             }
+            
+            # 移除值为None的字段
+            config = {k: v for k, v in config.items() if v is not None}
             
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=4)
