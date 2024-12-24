@@ -29,6 +29,7 @@ class GridStrategy:
         self.verbose = False
         self.ma_period = None
         self.ma_protection = False
+        self.ma_data = None
 
     def _calculate_buy_prices(self, base_price):
         """
@@ -49,10 +50,24 @@ class GridStrategy:
     def _check_ma_protection(self, price, ma_price, is_buy):
         """
         检查均线保护条件
+        仅作为价格区间调整的参考，不计入失败交易
+        
+        Args:
+            price: 当前价格
+            ma_price: 均线价格
+            is_buy: 是否为买入操作
+            
+        Returns:
+            bool: 是否满足均线保护条件
         """
         if not self.ma_protection or ma_price is None:
             return True
-        return price <= ma_price if is_buy else price >= ma_price
+        
+        if is_buy and price < ma_price:
+            return False
+        elif not is_buy and price > ma_price:
+            return False
+        return True
 
     def buy(self, price, time):
         """
@@ -70,6 +85,14 @@ class GridStrategy:
                 return False
         except ValueError:
             raise ValueError("无效的日期格式，应为 YYYY-MM-DD")
+        
+        # 检查均线保护
+        if self.ma_protection and self.ma_data is not None:
+            ma_price = self.ma_data[self.ma_data['日期'] == time]['MA5'].iloc[0]
+            if not self._check_ma_protection(price, ma_price, True):
+                if self.verbose:
+                    print(f"均线保护：当前价格 {price:.3f} 低于均线 {ma_price:.3f}")
+                return False
         
         # 首先验证价格是否在允许范围内
         if not (self.price_range[0] <= price <= self.price_range[1]):
@@ -112,6 +135,14 @@ class GridStrategy:
                 return False
         except ValueError:
             raise ValueError("无效的日期格式，应为 YYYY-MM-DD")
+        
+        # 检查均线保护
+        if self.ma_protection and self.ma_data is not None:
+            ma_price = self.ma_data[self.ma_data['日期'] == time]['MA5'].iloc[0]
+            if not self._check_ma_protection(price, ma_price, False):
+                if self.verbose:
+                    print(f"均线保护：当前价格 {price:.3f} 高于均线 {ma_price:.3f}")
+                return False
         
         # 首先验证价格是否在允许范围内
         if not (self.price_range[0] <= price <= self.price_range[1]):
