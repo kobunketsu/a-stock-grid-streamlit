@@ -58,6 +58,19 @@ class GridStrategy:
         """
         执行买入操作
         """
+        # 验证日期格式
+        try:
+            if isinstance(time, pd.Timestamp):
+                time = time.strftime('%Y-%m-%d')
+            datetime.strptime(time, '%Y-%m-%d')
+            # 检查是否是未来日期
+            if datetime.strptime(time, '%Y-%m-%d') > datetime.now():
+                if self.verbose:
+                    print(f"不能在未来日期 {time} 进行交易")
+                return False
+        except ValueError:
+            raise ValueError("无效的日期格式，应为 YYYY-MM-DD")
+        
         # 首先验证价格是否在允许范围内
         if not (self.price_range[0] <= price <= self.price_range[1]):
             if self.verbose:
@@ -87,6 +100,19 @@ class GridStrategy:
         """
         执行卖出操作
         """
+        # 验证日期格式
+        try:
+            if isinstance(time, pd.Timestamp):
+                time = time.strftime('%Y-%m-%d')
+            datetime.strptime(time, '%Y-%m-%d')
+            # 检查是否是未来日期
+            if datetime.strptime(time, '%Y-%m-%d') > datetime.now():
+                if self.verbose:
+                    print(f"不能在未来日期 {time} 进行交易")
+                return False
+        except ValueError:
+            raise ValueError("无效的日期格式，应为 YYYY-MM-DD")
+        
         # 首先验证价格是否在允许范围内
         if not (self.price_range[0] <= price <= self.price_range[1]):
             if self.verbose:

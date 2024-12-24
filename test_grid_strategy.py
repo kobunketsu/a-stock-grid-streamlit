@@ -54,7 +54,7 @@ class TestGridStrategy(unittest.TestCase):
             strategy.backtest()
         
         strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
-        strategy.price_range = (4.3, 3.9)  # 无���的价格区间
+        strategy.price_range = (4.3, 3.9)  # 无�����的价格区间
         with self.assertRaises(ValueError):
             strategy.backtest()
 
@@ -124,7 +124,7 @@ class TestGridStrategy(unittest.TestCase):
         self.strategy.buy(4.0, "2024-01-01")
         self.strategy.sell(4.1, "2024-01-02")
         
-        # 计算收益
+        # 算收益
         profit_rate = self.strategy.calculate_profit(4.0, verbose=True)
         
         # 验证收益率计算
@@ -169,8 +169,12 @@ class TestGridStrategy(unittest.TestCase):
         
         # 测试失败交易记录
         self.strategy.positions = 0
-        self.strategy.sell(4.0, "2024-01-03")
+        self.strategy.sell(4.0, "2024-01-03")  # 这会记录一个无持仓失败
         self.assertEqual(self.strategy.failed_trades["无持仓"], 1)
+        
+        # 测试买入价格超范围
+        self.strategy.buy(3.8, "2024-01-03")  # 价格低于最低价
+        self.assertEqual(self.strategy.failed_trades["买入价格超范围"], 1)
 
     def test_price_calculation(self):
         """测试价格计算"""
@@ -204,7 +208,7 @@ class TestGridStrategy(unittest.TestCase):
         # 测试无效日期
         with self.assertRaises(ValueError):
             self.strategy.backtest(
-                start_date="2024-13-01",  # 无效月��
+                start_date="2024-13-01",  # 无效月
                 end_date="2024-01-10"
             )
         
@@ -267,6 +271,255 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(result)
         result = strategy.sell(strategy.price_range[1], "2024-01-01")  # 最高价卖出
         self.assertTrue(result)
+
+    def test_ma_protection_edge_cases(self):
+        """测试均线保护的边界条件"""
+        self.strategy.ma_protection = True
+        self.strategy.ma_period = 5
+        
+        # 测试价格等于均线的情况
+        self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, True))
+        self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, False))
+        
+        # 测试均线为None的情况
+        self.assertTrue(self.strategy._check_ma_protection(4.0, None, True))
+        self.assertTrue(self.strategy._check_ma_protection(4.0, None, False))
+        
+        # 测试ma_protection为False的情况
+        self.strategy.ma_protection = False
+        self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, True))
+        self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, False))
+
+    def test_trade_failure_recording(self):
+        """测试交易失败记录"""
+        # 测试买入失败记录
+        self.strategy.cash = 0  # 设置现金为0
+        self.strategy.buy(4.0, "2024-01-01")
+        self.assertEqual(self.strategy.failed_trades["现金不足"], 1)
+        
+        # 测试卖出失败记录
+        self.strategy.positions = 0  # 设置持仓为0
+        self.strategy.sell(4.0, "2024-01-01")
+        self.assertEqual(self.strategy.failed_trades["无持仓"], 1)
+        
+        # 测试价格超出范围的失败记录
+        self.strategy.buy(3.8, "2024-01-01")  # 低于最低价
+        self.assertEqual(self.strategy.failed_trades["买入价格超范围"], 1)
+        
+        self.strategy.sell(4.4, "2024-01-01")  # 高于最高价
+        self.assertEqual(self.strategy.failed_trades["卖出价格超范围"], 1)
+
+    def test_profit_calculation_edge_cases(self):
+        """测试收益计算的边界条件"""
+        # 测试无交易的情况
+        profit_rate = self.strategy.calculate_profit(4.0, verbose=True)
+        self.assertEqual(profit_rate, 0.0)
+        
+        # 测试亏损的情况
+        self.strategy.buy(4.0, "2024-01-01")
+        profit_rate = self.strategy.calculate_profit(3.9, verbose=True)
+        self.assertTrue(profit_rate < 0)
+        
+        # 测试盈利的情况
+        self.strategy.sell(4.1, "2024-01-02")
+        profit_rate = self.strategy.calculate_profit(4.1, verbose=True)
+        self.assertTrue(profit_rate > 0)
+
+    def test_backtest_error_handling(self):
+        """测试回测错误处理"""
+        # 测试无效的日期格式
+        with self.assertRaises(ValueError):
+            self.strategy.backtest("invalid_date", "2024-01-10")
+        
+        # 测试结束日期早于开始日期
+        with self.assertRaises(ValueError):
+            self.strategy.backtest("2024-01-10", "2024-01-01")
+        
+        # 测试效的价格区间
+        self.strategy.price_range = (4.3, 3.9)  # 最高价小于最低价
+        with self.assertRaises(ValueError):
+            self.strategy.backtest()
+        
+        # 测试负数现金
+        self.strategy.initial_cash = -1000
+        with self.assertRaises(ValueError):
+            self.strategy.backtest()
+        
+        # 测试负数持仓
+        self.strategy.initial_cash = 100000
+        self.strategy.initial_positions = -1000
+        with self.assertRaises(ValueError):
+            self.strategy.backtest()
+
+    @patch('akshare.fund_etf_hist_em')
+    def test_backtest_market_conditions(self, mock_hist_data):
+        """测试不同市场条件下的回测"""
+        # 测试上涨行情
+        dates = pd.date_range(start="2024-01-01", end="2024-01-05", freq='D')
+        uptrend_data = pd.DataFrame({
+            '日期': dates,
+            '开盘': [4.0, 4.1, 4.2, 4.3, 4.4],
+            '收盘': [4.1, 4.2, 4.3, 4.4, 4.5],
+            '最高': [4.2, 4.3, 4.4, 4.5, 4.6],
+            '最低': [4.0, 4.1, 4.2, 4.3, 4.4]
+        })
+        mock_hist_data.return_value = uptrend_data
+        profit_rate = self.strategy.backtest(verbose=True)
+        self.assertTrue(profit_rate > 0)
+        
+        # 测试下跌行情
+        downtrend_data = pd.DataFrame({
+            '日期': dates,
+            '开盘': [4.4, 4.3, 4.2, 4.1, 4.0],
+            '收盘': [4.3, 4.2, 4.1, 4.0, 3.9],
+            '最高': [4.4, 4.3, 4.2, 4.1, 4.0],
+            '最低': [4.2, 4.1, 4.0, 3.9, 3.8]
+        })
+        mock_hist_data.return_value = downtrend_data
+        profit_rate = self.strategy.backtest(verbose=True)
+        self.assertTrue(profit_rate < 0)
+        
+        # 测试震荡行情
+        sideways_data = pd.DataFrame({
+            '日期': dates,
+            '开盘': [4.0, 4.1, 4.0, 4.1, 4.0],
+            '收盘': [4.1, 4.0, 4.1, 4.0, 4.1],
+            '最高': [4.2, 4.2, 4.2, 4.2, 4.2],
+            '最低': [3.9, 3.9, 3.9, 3.9, 3.9]
+        })
+        mock_hist_data.return_value = sideways_data
+        profit_rate = self.strategy.backtest(verbose=True)
+        self.assertIsInstance(profit_rate, float)
+
+    def test_verbose_output(self):
+        """测试详细输出模式"""
+        # 测试买入操作的详细输出
+        self.strategy.verbose = True
+        self.strategy.buy(4.0, "2024-01-01")
+        
+        # 测试卖出操作的详细输出
+        self.strategy.sell(4.1, "2024-01-01")
+        
+        # 测试失败操作的详细输出
+        self.strategy.cash = 0
+        self.strategy.buy(4.0, "2024-01-01")
+        
+        self.strategy.positions = 0
+        self.strategy.sell(4.0, "2024-01-01")
+
+    def test_empty_data_handling(self):
+        """测试空数据处理"""
+        with patch('akshare.fund_etf_hist_em') as mock_hist_data:
+            # 测试空DataFrame
+            mock_hist_data.return_value = pd.DataFrame()
+            with self.assertRaises(Exception):
+                self.strategy.backtest()
+            
+            # 测试无效的日期格式
+            with self.assertRaises(ValueError):
+                self.strategy.backtest("invalid", "2024-01-10")
+
+    def test_stock_data_handling(self):
+        """测试股票数据处理"""
+        self.strategy.security_type = "STOCK"
+        with patch('akshare.stock_zh_a_hist') as mock_hist_data:
+            dates = pd.date_range(start="2024-01-01", end="2024-01-05", freq='D')
+            mock_data = pd.DataFrame({
+                '日期': dates,
+                '开盘': [4.0] * len(dates),
+                '收盘': [4.1] * len(dates),
+                '最高': [4.2] * len(dates),
+                '最低': [3.9] * len(dates)
+            })
+            mock_hist_data.return_value = mock_data
+            
+            profit_rate = self.strategy.backtest(verbose=True)
+            self.assertIsInstance(profit_rate, float)
+
+    def test_multiple_trade_handling(self):
+        """测试多次交易处理"""
+        # 测试多次买入
+        self.strategy.multiple_trade = True
+        self.strategy.cash = 100000
+        result = self.strategy.buy(3.8, "2024-01-01")
+        self.assertFalse(result)  # 价格超出范围
+        
+        # 测试多次卖出
+        self.strategy.positions = 5000
+        result = self.strategy.sell(4.4, "2024-01-01")
+        self.assertFalse(result)  # 价格超出范围
+
+    def test_main_function(self):
+        """测试主函数"""
+        with patch('akshare.fund_etf_hist_em') as mock_hist_data:
+            dates = pd.date_range(start="2024-01-01", end="2024-01-05", freq='D')
+            mock_data = pd.DataFrame({
+                '日期': dates,
+                '开盘': [4.0] * len(dates),
+                '收盘': [4.1] * len(dates),
+                '最高': [4.2] * len(dates),
+                '最低': [3.9] * len(dates)
+            })
+            mock_hist_data.return_value = mock_data
+            
+            # 测试主函数
+            if __name__ == '__main__':
+                strategy = GridStrategy()
+                strategy.backtest('2024-01-01', '2024-01-05')
+                strategy.backtest()  # 使用默认日期范围
+
+    def test_extreme_price_conditions(self):
+        """测试极端价格条件"""
+        # 测试价格为0的情况
+        self.assertFalse(self.strategy.buy(0, "2024-01-01"))
+        self.assertFalse(self.strategy.sell(0, "2024-01-01"))
+        
+        # 测试负价格
+        self.assertFalse(self.strategy.buy(-1, "2024-01-01"))
+        self.assertFalse(self.strategy.sell(-1, "2024-01-01"))
+        
+        # 测试极大价格
+        self.assertFalse(self.strategy.buy(1000000, "2024-01-01"))
+        self.assertFalse(self.strategy.sell(1000000, "2024-01-01"))
+
+    def test_invalid_date_handling(self):
+        """测试无效日期处理"""
+        # 测试无效日期格式
+        with self.assertRaises(ValueError):
+            self.strategy.buy(4.0, "invalid_date")
+            
+        # 测试空日期
+        with self.assertRaises(ValueError):
+            self.strategy.sell(4.0, "")
+            
+        # 测试未来日期
+        future_date = (datetime.now() + timedelta(days=365)).strftime("%Y-%m-%d")
+        self.assertFalse(self.strategy.buy(4.0, future_date))
+
+    def test_position_limits(self):
+        """测试持仓限制"""
+        # 测试负持仓
+        self.strategy.positions = -100
+        self.assertFalse(self.strategy.sell(4.0, "2024-01-01"))
+        
+        # 测试正常买入不受持仓限制
+        self.strategy.positions = 1000000  # 设置一个很大的持仓量
+        self.strategy.cash = 1000000  # 确保有足够的现金
+        self.assertTrue(self.strategy.buy(4.0, "2024-01-01"))  # 应该可以继续买入
+
+    def test_cash_limits(self):
+        """测试资金限制"""
+        # 测试现金不足
+        self.strategy.cash = 0
+        self.assertFalse(self.strategy.buy(4.0, "2024-01-01"))
+        
+        # 测试负现金
+        self.strategy.cash = -1000
+        self.assertFalse(self.strategy.buy(4.0, "2024-01-01"))
+        
+        # 测试超大现金
+        self.strategy.cash = float('inf')
+        self.assertTrue(self.strategy.buy(4.0, "2024-01-01"))
 
 if __name__ == '__main__':
     unittest.main() 
