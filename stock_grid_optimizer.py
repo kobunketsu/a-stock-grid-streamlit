@@ -134,15 +134,16 @@ class GridStrategyOptimizer:
         
         # 计算最大可交易股数
         base_price = self.fixed_params["base_price"]
-        
-        # 计算最大可交易股数，考虑最少买入次数
-        # 确保有足够的资金进行最少次数的买入
         max_shares_by_cash = int(self.fixed_params["initial_cash"] / base_price)
         max_shares_by_times = int(self.fixed_params["initial_cash"] / 
-                                (min_buy_times * base_price))
-        
-        # 使用较小的值作为最大交易股数
+                                  (min_buy_times * base_price))
         max_shares = min(max_shares_by_cash, max_shares_by_times)
+
+        # 确保最大股数不小于最小交易股数
+        min_shares_per_trade = 1000
+        if max_shares < min_shares_per_trade:
+            max_shares = min_shares_per_trade
+
         print(f"基于初始资金计算的最大股数: {max_shares_by_cash}")
         print(f"基于最少买入次数计算的最大股数: {max_shares_by_times}")
         print(f"最终使用的最大交易股数: {max_shares}")
@@ -170,8 +171,8 @@ class GridStrategyOptimizer:
                 "step": 0.0005
             },
             "shares_per_trade": {
-                "min": 1000,
-                "max": max_shares,  # 使用计算得到的最大股数
+                "min": min_shares_per_trade,
+                "max": max_shares,
                 "step": 1000
             }
         }
