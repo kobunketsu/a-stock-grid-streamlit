@@ -196,74 +196,103 @@ def main():
         
         # 开始优化按钮
         if st.button("开始优化", type="primary"):
-            with st.spinner("正在优化参数..."):
-                # 创建优化器实例
-                optimizer = GridStrategyOptimizer(
-                    symbol=symbol,
-                    security_type="ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK",
-                    start_date=datetime.combine(start_date, datetime.min.time()),
-                    end_date=datetime.combine(end_date, datetime.min.time()),
-                    ma_period=ma_period,
-                    ma_protection=ma_protection,
-                    initial_positions=initial_positions,
-                    initial_cash=initial_cash,
-                    min_buy_times=min_buy_times,
-                    price_range=(price_range_min, price_range_max),
-                    profit_calc_method=profit_calc_method if enable_segments else "mean",
-                    connect_segments=connect_segments if enable_segments else False
-                )
-                
-                # 创建进度条
-                progress_bar = st.progress(0)
-                progress_text = st.empty()
-                
-                # 优化进度回调函数
-                def progress_callback(study, trial):
-                    progress = (trial.number + 1) / n_trials
-                    progress_bar.progress(progress)
-                    progress_text.text(f"优化进度: {progress*100:.1f}%")
-                
-                # 运行优化
-                results = optimizer.optimize(n_trials=n_trials)
-                
-                if results:
-                    # 显示优化结果
-                    st.success("优化完成！")
+            try:
+                with st.spinner("正在优化参数..."):
+                    # 检查输入参数
+                    if not symbol:
+                        st.error("请输入股票代码")
+                        return
                     
-                    # 显示最佳参数
-                    st.subheader("最佳参数组合")
-                    best_trial = results["sorted_trials"][0]
-                    best_params = best_trial.params
-                    best_profit = -best_trial.value
+                    if start_date >= end_date:
+                        st.error("开始日期必须早于结束日期")
+                        return
                     
-                    st.write(f"收益率: {best_profit:.2f}%")
-                    st.write("参数详情:")
-                    for param, value in best_params.items():
-                        if param in ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']:
-                            st.write(f"- {param}: {value*100:.2f}%")
-                        else:
-                            st.write(f"- {param}: {value}")
+                    if price_range_min >= price_range_max:
+                        st.error("价格区间最小值必须小于最大值")
+                        return
                     
-                    # 显示前N个结果
-                    st.subheader(f"前 {top_n} 个最佳组合")
-                    for i, trial in enumerate(results["sorted_trials"][:top_n], 1):
-                        with st.expander(f"组合 {i} - 收益率: {-trial.value:.2f}%"):
-                            for param, value in trial.params.items():
+                    # 创建优化器实例
+                    try:
+                        optimizer = GridStrategyOptimizer(
+                            symbol=symbol,
+                            security_type="ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK",
+                            start_date=datetime.combine(start_date, datetime.min.time()),
+                            end_date=datetime.combine(end_date, datetime.min.time()),
+                            ma_period=ma_period,
+                            ma_protection=ma_protection,
+                            initial_positions=initial_positions,
+                            initial_cash=initial_cash,
+                            min_buy_times=min_buy_times,
+                            price_range=(price_range_min, price_range_max),
+                            profit_calc_method=profit_calc_method if enable_segments else None,
+                            connect_segments=connect_segments if enable_segments else False
+                        )
+                    except Exception as e:
+                        st.error(f"创建优化器失败: {str(e)}")
+                        return
+                    
+                    # 创建进度条
+                    progress_bar = st.progress(0)
+                    progress_text = st.empty()
+                    
+                    # 优化进度回调函数
+                    def progress_callback(study, trial):
+                        progress = (trial.number + 1) / n_trials
+                        progress_bar.progress(progress)
+                        progress_text.text(f"优化进度: {progress*100:.1f}%")
+                    
+                    # 运行优化
+                    try:
+                        results = optimizer.optimize(n_trials=n_trials)
+                    except Exception as e:
+                        st.error(f"优化过程发生错误: {str(e)}")
+                        return
+                    
+                    if results:
+                        # 显示优化结果
+                        st.success("优化完成！")
+                        
+                        try:
+                            # 显示最佳参数
+                            st.subheader("最佳参数组合")
+                            best_trial = results["sorted_trials"][0]
+                            best_params = best_trial.params
+                            best_profit = -best_trial.value
+                            
+                            st.write(f"收益率: {best_profit:.2f}%")
+                            st.write("参数详情:")
+                            for param, value in best_params.items():
                                 if param in ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']:
                                     st.write(f"- {param}: {value*100:.2f}%")
                                 else:
                                     st.write(f"- {param}: {value}")
-                            st.write(f"交��次数: {trial.user_attrs.get('trade_count', 'N/A')}")
                             
-                            # 显示失败交易统计
-                            failed_trades = eval(trial.user_attrs.get("failed_trades", "{}"))
-                            if failed_trades:
-                                st.write("失败交易统计:")
-                                for reason, count in failed_trades.items():
-                                    if count > 0:
-                                        st.write(f"- {reason}: {count}次")
-                else:
-                    st.error("优化过程中发生错误")
+                            # 显示前N个结果
+                            st.subheader(f"前 {top_n} 个最佳组合")
+                            for i, trial in enumerate(results["sorted_trials"][:top_n], 1):
+                                with st.expander(f"组合 {i} - 收益率: {-trial.value:.2f}%"):
+                                    for param, value in trial.params.items():
+                                        if param in ['up_sell_rate', 'down_buy_rate', 'up_callback_rate', 'down_rebound_rate']:
+                                            st.write(f"- {param}: {value*100:.2f}%")
+                                        else:
+                                            st.write(f"- {param}: {value}")
+                                    st.write(f"交易次数: {trial.user_attrs.get('trade_count', 'N/A')}")
+                                    
+                                    # 显示失败交易统计
+                                    failed_trades = eval(trial.user_attrs.get("failed_trades", "{}"))
+                                    if failed_trades:
+                                        st.write("失败交易统计:")
+                                        for reason, count in failed_trades.items():
+                                            if count > 0:
+                                                st.write(f"- {reason}: {count}次")
+                        except Exception as e:
+                            st.error(f"显示结果时发生错误: {str(e)}")
+                    else:
+                        st.error("优化过程未返回结果")
+            except Exception as e:
+                st.error(f"发生未预期的错误: {str(e)}")
+                import traceback
+                st.code(traceback.format_exc())
 
 # 直接调用main函数
 if __name__ == "__main__":

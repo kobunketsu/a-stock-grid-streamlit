@@ -205,6 +205,19 @@ class GridStrategyOptimizer:
             dict: 优化结果
         """
         try:
+            # 验证输入参数
+            if not self.symbol:
+                raise ValueError("股票代码不能为空")
+            
+            if not self.start_date or not self.end_date:
+                raise ValueError("开始日期和结束日期不能为空")
+            
+            if self.start_date >= self.end_date:
+                raise ValueError("开始日期必须早于结束日期")
+            
+            if self.price_range[0] >= self.price_range[1]:
+                raise ValueError("价格区间最小值必须小于最大值")
+            
             # 创建study对象
             study = optuna.create_study(direction="minimize")
             
@@ -214,6 +227,9 @@ class GridStrategyOptimizer:
             # 获取所有trials并按value排序
             sorted_trials = sorted(study.trials, key=lambda t: t.value)
             
+            if not sorted_trials:
+                raise ValueError("优化过程未产生有效结果")
+            
             return {
                 "best_trial": study.best_trial,
                 "sorted_trials": sorted_trials
@@ -221,4 +237,6 @@ class GridStrategyOptimizer:
             
         except Exception as e:
             print(f"优化过程中发生错误: {e}")
+            import traceback
+            print(traceback.format_exc())
             return None
