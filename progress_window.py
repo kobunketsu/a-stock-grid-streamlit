@@ -27,7 +27,7 @@ class ProgressWindow:
         
         # 将变量声明为None，稍后在create_window中初始化
         self.symbol_var = None
-        self.symbol_name_var = None  # 新增证券名称变量
+        self.symbol_name_var = None
         self.start_date_var = None
         self.end_date_var = None
         self.ma_period_var = None
@@ -40,12 +40,21 @@ class ProgressWindow:
         self.n_trials_var = None
         self.top_n_var = None
         
-        self.sort_ascending = False  # 修改默认排序方向为降序
-        self.current_results = []   # 存储当前的结果列表
+        # 添加分段回测相关变量的初始化
+        self.enable_segments = None
+        self.profit_calc_method_var = None
+        self.connect_segments = None
+        self.segment_label = None
+        self.segment_mode_combo = None
+        self.segment_days_label = None
+        self.connect_checkbox = None
         
-        self.config_file = "grid_strategy_config.json"  # 配置文件路径
-        self.optimization_running = False  # 添加优化运行状态标志
-        self.start_button = None  # 添加开始按钮引用
+        self.sort_ascending = False
+        self.current_results = []
+        
+        self.config_file = "grid_strategy_config.json"
+        self.optimization_running = False
+        self.start_button = None
         
     def create_window(self):
         self.root = tk.Tk()
@@ -206,15 +215,15 @@ class ProgressWindow:
         ttk.Separator(parent, orient='horizontal').grid(
             row=12, column=0, columnspan=2, sticky='ew', pady=10)
 
-        # 多段回测设置框架
-        segments_frame = ttk.LabelFrame(parent, text="多段回测设置", padding=5)
+        # 分段回测设置框架
+        segments_frame = ttk.LabelFrame(parent, text="分段回测设置", padding=5)
         segments_frame.grid(row=13, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
         # 分段回测开关
         self.enable_segments = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             segments_frame,
-            text="启用多段回测",
+            text="分段回测",
             variable=self.enable_segments,
             command=self.toggle_segment_options
         ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=2)
@@ -361,7 +370,7 @@ class ProgressWindow:
                 initial_cash=initial_cash,
                 min_buy_times=min_buy_times,
                 price_range=price_range,
-                profit_calc_method=self.segment_mode.get() if self.enable_segments.get() else None,
+                profit_calc_method=self.profit_calc_method_var.get() if self.enable_segments.get() else None,
                 connect_segments=self.connect_segments.get() if self.enable_segments.get() else False
             )
             
@@ -734,7 +743,7 @@ class ProgressWindow:
             self.trade_details.insert(tk.END, f"总段数: {len(segments)}\n")
             
             # 根据收益计算方式显示
-            if self.segment_mode.get() == "平均值":
+            if self.profit_calc_method_var.get() == "平均值":
                 avg_profit = total_profit / len(segments)
                 self.trade_details.insert(tk.END, f"平均收益率: {avg_profit:.2f}%\n")
             else:  # 中值
@@ -1126,7 +1135,7 @@ class ProgressWindow:
         return None
 
     def toggle_segment_options(self):
-        """切换多段回测选项的启用状态"""
+        """切换分段回测选项的启用状态"""
         enabled = self.enable_segments.get()
         
         # 更新控件状态
