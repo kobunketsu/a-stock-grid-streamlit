@@ -30,6 +30,30 @@ class GridStrategy:
         self.ma_period = None
         self.ma_protection = False
 
+    def _calculate_buy_prices(self, base_price):
+        """
+        计算买入触发价和执行价
+        """
+        trigger_price = base_price * (1 - self.down_buy_rate)
+        exec_price = trigger_price * (1 + self.down_rebound_rate)
+        return trigger_price, exec_price
+
+    def _calculate_sell_prices(self, base_price):
+        """
+        计算卖出触发价和执行价
+        """
+        trigger_price = base_price * (1 + self.up_sell_rate)
+        exec_price = trigger_price * (1 - self.up_callback_rate)
+        return trigger_price, exec_price
+
+    def _check_ma_protection(self, price, ma_price, is_buy):
+        """
+        检查均线保护条件
+        """
+        if not self.ma_protection or ma_price is None:
+            return True
+        return price <= ma_price if is_buy else price >= ma_price
+
     def buy(self, price, time):
         """
         执行买入操作
@@ -53,7 +77,11 @@ class GridStrategy:
                 "金额": amount
             })
             return True
-        return False
+        else:
+            if self.verbose:
+                print(f"现金不足，需要 {amount:.2f}，当前现金 {self.cash:.2f}")
+            self.failed_trades["现金不足"] += 1
+            return False
 
     def sell(self, price, time):
         """
@@ -78,12 +106,24 @@ class GridStrategy:
                 "金额": amount
             })
             return True
-        return False
+        else:
+            if self.verbose:
+                print(f"持仓不足，需要 {self.shares_per_trade}，当前持仓 {self.positions}")
+            self.failed_trades["无持仓"] += 1
+            return False
 
     def backtest(self, start_date=None, end_date=None, verbose=False):
         """
         执行回测
         """
+        # 参数验证
+        if self.initial_cash < 0:
+            raise ValueError("初始现金不能为负数")
+        if self.initial_positions < 0:
+            raise ValueError("初始持仓不能为负数")
+        if self.price_range and self.price_range[0] > self.price_range[1]:
+            raise ValueError("价格区间无效：最低价大于最高价")
+        
         # 处理日期参数
         if start_date is None:
             end_date = datetime.now()
@@ -93,6 +133,9 @@ class GridStrategy:
                 start_date = datetime.strptime(start_date, '%Y-%m-%d')
             if isinstance(end_date, str):
                 end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            
+            if start_date > end_date:
+                raise ValueError("开始日期不能晚于结束日期")
         
         start_date_str = start_date.strftime('%Y%m%d')
         end_date_str = end_date.strftime('%Y%m%d')
@@ -256,38 +299,14 @@ class GridStrategy:
             print("\n未成交统计:")
             for reason, count in self.failed_trades.items():
                 if count > 0:
-                    print(f"{reason}: {count}次")
+                    print(f"{reason}: {count}")
             
-            print(f"\n=== {self.symbol_name}({self.symbol}) 交易记录 ===")
-            trades_df = pd.DataFrame(self.trades)
-            if not trades_df.empty:
-                print(trades_df)
-            else:
-                print("无交易记录")
+            if len(self.trades) > 0:
+                print(f"\n=== {self.symbol_name}({self.symbol}) 交易记录 ===")
+                df_trades = pd.DataFrame(self.trades)
+                print(df_trades)
         
         return self.final_profit_rate
-
-    def _check_ma_protection(self, price: float, ma_price: float, is_buy: bool) -> bool:
-        """
-        检查均线保护条件
-        
-        Args:
-            price (float): 当前价格
-            ma_price (float): 均线价格
-            is_buy (bool): 是否为买入操作
-            
-        Returns:
-            bool: 是否允许交易
-        """
-        if not self.ma_protection or pd.isna(ma_price):
-            return True
-            
-        if is_buy:
-            # 买入时价格应低于均线
-            return price <= ma_price
-        else:
-            # 卖出时价格应高于均线
-            return price >= ma_price
 
 if __name__ == "__main__":
     strategy = GridStrategy()

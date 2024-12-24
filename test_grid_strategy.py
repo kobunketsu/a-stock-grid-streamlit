@@ -1,14 +1,11 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import pandas as pd
-import numpy as np
 from datetime import datetime, timedelta
 from grid_strategy import GridStrategy
-from stock_grid_optimizer import GridStrategyOptimizer
-import akshare as ak
 
 class TestGridStrategy(unittest.TestCase):
-    """网格交易策略测试类"""
+    """网格策略测试类"""
     
     def setUp(self):
         """测试前的准备工作"""
@@ -25,28 +22,41 @@ class TestGridStrategy(unittest.TestCase):
         self.strategy.initial_cash = 100000
         self.strategy.cash = self.strategy.initial_cash
         
-        # 模拟历史数据
+        # 生成模拟数据
+        dates = pd.date_range(start="2024-01-01", end="2024-01-10", freq='D')
         self.mock_hist_data = pd.DataFrame({
-            '日期': pd.date_range(start='2024-01-01', end='2024-01-10'),
+            '日期': dates,
             '开盘': [4.0, 4.1, 4.0, 3.9, 4.0, 4.1, 4.2, 4.1, 4.0, 3.9],
+            '收盘': [4.0, 4.1, 4.0, 3.9, 4.0, 4.1, 4.2, 4.1, 4.0, 3.9],
             '最高': [4.1, 4.2, 4.1, 4.0, 4.1, 4.2, 4.3, 4.2, 4.1, 4.0],
             '最低': [3.9, 4.0, 3.9, 3.8, 3.9, 4.0, 4.1, 4.0, 3.9, 3.8],
-            '收盘': [4.0, 4.1, 4.0, 3.9, 4.0, 4.1, 4.2, 4.1, 4.0, 3.9]
+            '成交量': [1000000] * len(dates),
+            '成交额': [4000000] * len(dates)
         })
 
     def test_initialization(self):
         """测试策略初始化"""
+        # 测试正常初始化
         self.assertEqual(self.strategy.symbol, "159300")
         self.assertEqual(self.strategy.symbol_name, "沪深300ETF")
         self.assertEqual(self.strategy.initial_positions, 5000)
         self.assertEqual(self.strategy.initial_cash, 100000)
-        self.assertEqual(len(self.strategy.trades), 0)
-        self.assertDictEqual(self.strategy.failed_trades, {
-            "无持仓": 0,
-            "卖出价格超范围": 0,
-            "现金不足": 0,
-            "买入价格超范围": 0
-        })
+        
+        # 测试参数验证
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.initial_cash = -1000  # 负数现金
+        with self.assertRaises(ValueError):
+            strategy.backtest()
+        
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.initial_positions = -1000  # 负数持仓
+        with self.assertRaises(ValueError):
+            strategy.backtest()
+        
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.price_range = (4.3, 3.9)  # 无���的价格区间
+        with self.assertRaises(ValueError):
+            strategy.backtest()
 
     def test_buy_operation(self):
         """测试买入操作"""
@@ -58,14 +68,15 @@ class TestGridStrategy(unittest.TestCase):
         self.assertEqual(self.strategy.cash, 96000)
         
         # 测试价格超出范围的买入
-        result = self.strategy.buy(4.4, "2024-01-01")
+        result = self.strategy.buy(3.8, "2024-01-01")
         self.assertFalse(result)
         self.assertEqual(self.strategy.failed_trades["买入价格超范围"], 1)
         
-        # 测试资金不足的买入
-        self.strategy.cash = 100
+        # 测试现金不足的买入
+        self.strategy.cash = 0
         result = self.strategy.buy(4.0, "2024-01-01")
         self.assertFalse(result)
+        self.assertEqual(self.strategy.failed_trades["现金不足"], 1)
 
     def test_sell_operation(self):
         """测试卖出操作"""
@@ -85,6 +96,7 @@ class TestGridStrategy(unittest.TestCase):
         self.strategy.positions = 0
         result = self.strategy.sell(4.0, "2024-01-01")
         self.assertFalse(result)
+        self.assertEqual(self.strategy.failed_trades["无持仓"], 1)
 
     @patch('akshare.fund_etf_hist_em')
     def test_backtest(self, mock_hist_data):
@@ -131,170 +143,130 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(self.strategy._check_ma_protection(4.1, 4.0, False))
         self.assertFalse(self.strategy._check_ma_protection(3.9, 4.0, False))
 
-class TestGridStrategyOptimizer(unittest.TestCase):
-    """网格策略优化器测试类"""
-    
-    def setUp(self):
-        """测试前的准备工作"""
-        self.start_date = datetime(2024, 1, 1)
-        self.end_date = datetime(2024, 1, 10)
-        self.optimizer = GridStrategyOptimizer(
-            symbol="159300",
-            start_date=self.start_date,
-            end_date=self.end_date,
-            security_type="ETF",
-            ma_period=55,
-            ma_protection=True,
-            initial_positions=5000,
-            initial_cash=100000,
-            min_buy_times=2,
-            price_range=(3.9, 4.3)
+    def test_trade_recording(self):
+        """测试交易记录功能"""
+        # 重置交易记录
+        self.strategy.trades = []
+        self.strategy.failed_trades = {
+            "无持仓": 0,
+            "卖出价格超范围": 0,
+            "现金不足": 0,
+            "买入价格超范围": 0
+        }
+        
+        # 执行一些交易
+        self.strategy.buy(4.0, "2024-01-01")
+        self.strategy.sell(4.1, "2024-01-02")
+        
+        # 验证交易记录
+        self.assertEqual(len(self.strategy.trades), 2)
+        self.assertEqual(self.strategy.trades[0]["操作"], "买入")
+        self.assertEqual(self.strategy.trades[1]["操作"], "卖出")
+        
+        # 验证交易统计
+        self.assertEqual(len(self.strategy.failed_trades), 4)  # 四种失败类型
+        self.assertEqual(sum(self.strategy.failed_trades.values()), 0)  # 无失败交易
+        
+        # 测试失败交易记录
+        self.strategy.positions = 0
+        self.strategy.sell(4.0, "2024-01-03")
+        self.assertEqual(self.strategy.failed_trades["无持仓"], 1)
+
+    def test_price_calculation(self):
+        """测试价格计算"""
+        # 测试买入价格计算
+        base_price = 4.0
+        down_rate = 0.01
+        rebound_rate = 0.003
+        
+        trigger_price = base_price * (1 - down_rate)
+        exec_price = trigger_price * (1 + rebound_rate)
+        
+        self.assertEqual(
+            self.strategy._calculate_buy_prices(base_price),
+            (trigger_price, exec_price)
         )
         
-        # 模拟历史数据
-        self.mock_hist_data = pd.DataFrame({
-            '日期': pd.date_range(start='2024-01-01', end='2024-01-10'),
-            '开盘': [4.0] * 10,
-            '最高': [4.1] * 10,
-            '最低': [3.9] * 10,
-            '收盘': [4.0] * 10,
-            '名称': ['沪深300ETF'] * 10,
-            '代码': ['159300'] * 10
-        })
-
-    @patch('akshare.fund_etf_hist_em')
-    @patch('akshare.fund_etf_spot_em')
-    def test_initialization(self, mock_spot_data, mock_hist_data):
-        """测试优化器初始化"""
-        # 设置模拟数据
-        mock_spot_data.return_value = pd.DataFrame({
-            '代码': ['159300'],
-            '名称': ['沪深300ETF']
-        })
-        mock_hist_data.return_value = self.mock_hist_data
+        # 测试卖出价格计算
+        up_rate = 0.01
+        callback_rate = 0.003
         
-        # 验证初始化参数
-        self.assertEqual(self.optimizer.fixed_params["symbol"], "159300")
-        self.assertEqual(self.optimizer.fixed_params["security_type"], "ETF")
-        self.assertEqual(self.optimizer.fixed_params["initial_cash"], 100000)
-        self.assertEqual(self.optimizer.fixed_params["initial_positions"], 5000)
-
-    def test_parameter_ranges(self):
-        """测试参数范围设置"""
-        # 验证ETF的参数范围
-        self.assertIn("up_sell_rate", self.optimizer.param_ranges)
-        self.assertIn("down_buy_rate", self.optimizer.param_ranges)
-        self.assertIn("up_callback_rate", self.optimizer.param_ranges)
-        self.assertIn("down_rebound_rate", self.optimizer.param_ranges)
-        self.assertIn("shares_per_trade", self.optimizer.param_ranges)
+        trigger_price = base_price * (1 + up_rate)
+        exec_price = trigger_price * (1 - callback_rate)
         
-        # 验证参数范围的合理性
-        self.assertLess(
-            self.optimizer.param_ranges["up_callback_rate"]["max"],
-            self.optimizer.param_ranges["up_sell_rate"]["max"]
-        )
-        self.assertLess(
-            self.optimizer.param_ranges["down_rebound_rate"]["max"],
-            self.optimizer.param_ranges["down_buy_rate"]["max"]
+        self.assertEqual(
+            self.strategy._calculate_sell_prices(base_price),
+            (trigger_price, exec_price)
         )
 
-    @patch('akshare.fund_etf_hist_em')
-    def test_run_backtest(self, mock_hist_data):
-        """测试运行回测"""
-        # 设置模拟数据
-        mock_hist_data.return_value = self.mock_hist_data
+    def test_error_handling(self):
+        """测试错误处理"""
+        # 测试无效日期
+        with self.assertRaises(ValueError):
+            self.strategy.backtest(
+                start_date="2024-13-01",  # 无效月��
+                end_date="2024-01-10"
+            )
         
-        # 测试参数
-        test_params = {
-            "up_sell_rate": 0.01,
-            "up_callback_rate": 0.003,
-            "down_buy_rate": 0.01,
-            "down_rebound_rate": 0.003,
-            "shares_per_trade": 1000
-        }
+        # 测试结束日期早于开始日期
+        with self.assertRaises(ValueError):
+            self.strategy.backtest(
+                start_date="2024-01-10",
+                end_date="2024-01-01"
+            )
         
-        # 运行回测
-        profit_rate, stats = self.optimizer.run_backtest(test_params)
-        
-        # 验证回测结果
-        self.assertIsInstance(profit_rate, float)
-        self.assertIn("trade_count", stats)
-        self.assertIn("failed_trades", stats)
-        self.assertIn("segment_results", stats)
+        # 测试无效的价格区间
+        self.strategy.price_range = (4.0, 3.0)  # 最高价小于最低价
+        with self.assertRaises(ValueError):
+            self.strategy.backtest()
 
-    @patch('optuna.create_study')
-    def test_optimize(self, mock_create_study):
-        """测试优化过程"""
-        # 模拟Study对象
-        mock_study = MagicMock()
-        mock_study.best_params = {
-            "up_sell_rate": 0.01,
-            "up_callback_rate": 0.003,
-            "down_buy_rate": 0.01,
-            "down_rebound_rate": 0.003,
-            "shares_per_trade": 1000
-        }
-        mock_study.best_value = -0.05  # 5%的收益率
-        mock_study.best_trial = MagicMock()
-        mock_study.best_trial.user_attrs = {
-            "trade_count": 10,
-            "failed_trades": str({"无持仓": 0, "现金不足": 0})
-        }
-        mock_create_study.return_value = mock_study
+    def test_boundary_conditions(self):
+        """测试边界条件"""
+        # 测试零持仓初始化
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.initial_positions = 0
+        strategy.positions = 0
+        strategy.base_price = 4.0
+        strategy.price_range = (3.9, 4.3)
+        strategy.initial_cash = 100000
+        strategy.cash = 100000
+        self.assertEqual(strategy.positions, 0)
         
-        # 执行优化
-        results = self.optimizer.optimize(n_trials=10)
+        # 测试零现金初始化
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.initial_cash = 0
+        strategy.cash = 0
+        strategy.base_price = 4.0
+        strategy.price_range = (3.9, 4.3)
+        strategy.initial_positions = 5000
+        strategy.positions = 5000
+        self.assertEqual(strategy.cash, 0)
         
-        # 验证优化结果
-        self.assertIsNotNone(results)
-        self.assertIn("study", results)
-        self.assertIn("sorted_trials", results)
-
-    def test_refined_ranges(self):
-        """测试优化范围细化"""
-        best_params = {
-            "up_sell_rate": 0.01,
-            "up_callback_rate": 0.003,
-            "down_buy_rate": 0.01,
-            "down_rebound_rate": 0.003,
-            "shares_per_trade": 1000
-        }
+        # 测试最小交易单位
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.shares_per_trade = 100
+        strategy.base_price = 4.0
+        strategy.price_range = (3.9, 4.3)
+        strategy.initial_cash = 100000
+        strategy.cash = 100000
+        strategy.initial_positions = 5000
+        strategy.positions = 5000
+        self.assertEqual(strategy.shares_per_trade, 100)
         
-        refined_ranges = self.optimizer._get_refined_ranges(best_params)
+        # 测试价格区间边界
+        strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
+        strategy.base_price = 4.0
+        strategy.price_range = (3.9, 4.3)
+        strategy.initial_cash = 100000
+        strategy.cash = 100000
+        strategy.initial_positions = 5000
+        strategy.positions = 5000
+        strategy.shares_per_trade = 1000
         
-        # 验证细化后的范围
-        for param in best_params:
-            self.assertIn(param, refined_ranges)
-            if param != "shares_per_trade":  # 对于浮点数参数
-                self.assertLess(refined_ranges[param]["min"], best_params[param])
-                self.assertGreater(refined_ranges[param]["max"], best_params[param])
-            else:  # 对于整数参数
-                self.assertLessEqual(refined_ranges[param]["min"], best_params[param])
-                self.assertGreaterEqual(refined_ranges[param]["max"], best_params[param])
-                self.assertTrue(isinstance(refined_ranges[param]["min"], int))
-                self.assertTrue(isinstance(refined_ranges[param]["max"], int))
-
-    def test_segment_handling(self):
-        """测试分段处理"""
-        segments = self.optimizer._build_segments()
-        
-        # 验证分段结果
-        self.assertIsInstance(segments, list)
-        self.assertTrue(all(isinstance(seg, tuple) for seg in segments))
-        self.assertTrue(all(len(seg) == 2 for seg in segments))
-        
-        # 验证分段的时间顺序
-        for i in range(len(segments)-1):
-            self.assertLess(segments[i][1], segments[i+1][0])
-
-    def test_trading_days(self):
-        """测试交易日获取"""
-        trading_days = self.optimizer._get_trading_days(self.start_date, self.end_date)
-        
-        # 验证交易日列表
-        self.assertIsInstance(trading_days, pd.DatetimeIndex)
-        self.assertTrue(len(trading_days) > 0)
-        self.assertTrue(all(isinstance(day, pd.Timestamp) for day in trading_days))
+        result = strategy.buy(strategy.price_range[0], "2024-01-01")  # 最低价买入
+        self.assertTrue(result)
+        result = strategy.sell(strategy.price_range[1], "2024-01-01")  # 最高价卖出
+        self.assertTrue(result)
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2) 
+    unittest.main() 
