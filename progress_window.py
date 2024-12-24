@@ -9,6 +9,7 @@ import akshare as ak
 import pandas as pd
 import json
 import os
+from ma_utils import calculate_ma_price
 
 class ProgressWindow:
     def __init__(self, total_trials):
@@ -139,6 +140,7 @@ class ProgressWindow:
         
         # 绑定窗口关闭事件
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+    
         
     def create_parameter_inputs(self, parent):
         """创建参数输入控件"""
@@ -149,6 +151,7 @@ class ProgressWindow:
         ttk.Label(parent, text="证券代码:").grid(row=0, column=0, sticky=tk.W, pady=2)
         symbol_entry = ttk.Entry(parent, textvariable=self.symbol_var, width=12)
         symbol_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
+        symbol_entry.bind('<FocusOut>', lambda e: self.validate_symbol(symbol_entry))
         
         # 证券名称输入框
         ttk.Label(parent, text="证券名称:").grid(row=1, column=0, sticky=tk.W, pady=2)
@@ -168,10 +171,12 @@ class ProgressWindow:
         ttk.Label(parent, text="开始日期:").grid(row=2, column=0, sticky=tk.W, pady=2)
         start_date_entry = ttk.Entry(parent, textvariable=self.start_date_var, width=12)
         start_date_entry.grid(row=2, column=1, sticky=tk.W, pady=2)
+        start_date_entry.bind('<FocusOut>', lambda e: self.validate_date(start_date_entry))
         
         ttk.Label(parent, text="结束日期:").grid(row=3, column=0, sticky=tk.W, pady=2)
         end_date_entry = ttk.Entry(parent, textvariable=self.end_date_var, width=12)
         end_date_entry.grid(row=3, column=1, sticky=tk.W, pady=2)
+        end_date_entry.bind('<FocusOut>', lambda e: self.validate_date(end_date_entry))
         
         ttk.Label(parent, text="均线周期:").grid(row=4, column=0, sticky=tk.W, pady=2)
         ma_period_entry = ttk.Entry(parent, textvariable=self.ma_period_var, width=12)
@@ -197,12 +202,13 @@ class ProgressWindow:
         price_range_frame.grid(row=9, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
         ttk.Label(price_range_frame, text="最小值:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        price_min_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_min_var, width=6)
-        price_min_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
+        self.price_min_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_min_var, width=6)
+        self.price_min_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
         
         ttk.Label(price_range_frame, text="最大值:").grid(row=0, column=2, sticky=tk.W, pady=2, padx=(5,0))
-        price_max_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=6)
-        price_max_entry.grid(row=0, column=3, sticky=tk.W, pady=2)
+        self.price_max_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=6)
+        self.price_max_entry.grid(row=0, column=3, sticky=tk.W, pady=2)
+        
         
         # 优化设置
         ttk.Label(parent, text="优化次数:").grid(row=10, column=0, sticky=tk.W, pady=2)
@@ -230,7 +236,7 @@ class ProgressWindow:
             command=self.toggle_segment_options
         ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=2)
         
-        # 分段收益计算模式
+        # 分段收益计算模
         self.segment_label = ttk.Label(segments_frame, text="计算方式:")
         self.segment_label.grid(row=1, column=0, sticky=tk.W, pady=2)
         
@@ -279,7 +285,7 @@ class ProgressWindow:
         all_entries = [
             symbol_entry, start_date_entry, end_date_entry, ma_period_entry,
             initial_pos_entry, initial_cash_entry, min_buy_entry,
-            price_min_entry, price_max_entry, n_trials_entry, top_n_entry
+            self.price_min_entry, self.price_max_entry, n_trials_entry, top_n_entry
         ]
         
         for entry in all_entries:
@@ -376,7 +382,7 @@ class ProgressWindow:
                 connect_segments=self.connect_segments.get() if self.enable_segments.get() else False
             )
             
-            # 将进度窗口传递给优化器
+            # 进度窗口传递给优化器
             optimizer.progress_window = self
             
             def run_optimization():
@@ -403,7 +409,7 @@ class ProgressWindow:
                         self.start_button.configure(text="开始优化")
                         self.optimization_running = False
                 finally:
-                    # 确保状态正确重置
+                    # 确保状态正确置
                     if not self.is_closed:
                         self.root.after(0, lambda: self.start_button.configure(text="开始优化"))
                         self.optimization_running = False
@@ -432,7 +438,7 @@ class ProgressWindow:
         self.trade_details.config(state='normal')
         self.trade_details.delete('1.0', tk.END)
         
-        # 获取参数和收益率
+        # 获取数和收益率
         params = trial.params
         profit_rate = -trial.value
         
@@ -503,7 +509,7 @@ class ProgressWindow:
                 self.root.destroy()
     
     def _check_thread_and_close(self):
-        """检查优化线程是否结束，如果结束则关闭窗口"""
+        """检查优化线程是否束，如果结束则关闭窗口"""
         if not self.optimization_thread.is_alive():
             self.root.destroy()
         else:
@@ -683,7 +689,7 @@ class ProgressWindow:
         enable_segments = self.enable_segments.get()
         
         if enable_segments:
-            # 使用segment_utils中的方法构建时间段
+            # 使用segment_utils中的方法构建时���段
             from segment_utils import build_segments
             segments = build_segments(
                 start_date=start_date,
@@ -938,7 +944,7 @@ class ProgressWindow:
                 
                 # 如果是新证券，尝试从配置文件中获取价格范围
                 if is_new_symbol:
-                    # 先尝试从配置文件中获取该证券的价格范围
+                    # 先尝试从配置文件中���取该证券的价格范围
                     config_data = self.load_symbol_config(symbol)
                     if config_data:
                         self.price_range_min_var.set(config_data.get('price_range_min', ''))
@@ -1008,7 +1014,7 @@ class ProgressWindow:
                             price_max = hist_df['最高'].max()
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
-                            print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
+                            print(f"已更新价格���围: {price_min:.3f} - {price_max:.3f}")
                 else:
                     print(f"未找到包含 '{name}' 的证券")
                 
@@ -1066,33 +1072,34 @@ class ProgressWindow:
     
     def save_config(self):
         """保存配置到文件"""
+        if not self.validate_all_inputs():
+            print("保存错误", "输入参数有误，无法保存配置")
+            return
+
+        config = {
+            "symbol": self.symbol_var.get(),
+            "symbol_name": self.symbol_name_var.get(),
+            "start_date": self.start_date_var.get(),
+            "end_date": self.end_date_var.get(),
+            "ma_period": self.ma_period_var.get(),
+            "ma_protection": self.ma_protection_var.get(),
+            "initial_positions": self.initial_positions_var.get(),
+            "initial_cash": self.initial_cash_var.get(),
+            "min_buy_times": self.min_buy_times_var.get(),
+            "price_range_min": self.price_range_min_var.get(),
+            "price_range_max": self.price_range_max_var.get(),
+            "n_trials": self.n_trials_var.get(),
+            "top_n": self.top_n_var.get(),
+            "profit_calc_method": self.profit_calc_method_var.get(),
+            "connect_segments": self.connect_segments_var.get()
+        }
+
         try:
-            config = {
-                'symbol': self.symbol_var.get(),
-                'symbol_name': self.symbol_name_var.get(),
-                'start_date': self.start_date_var.get(),
-                'end_date': self.end_date_var.get(),
-                'ma_period': self.ma_period_var.get(),
-                'ma_protection': self.ma_protection_var.get(),
-                'initial_positions': self.initial_positions_var.get(),
-                'initial_cash': self.initial_cash_var.get(),
-                'min_buy_times': self.min_buy_times_var.get(),
-                'price_range_min': self.price_range_min_var.get(),
-                'price_range_max': self.price_range_max_var.get(),
-                'n_trials': self.n_trials_var.get(),
-                'top_n': self.top_n_var.get(),
-                'profit_calc_method': self.profit_calc_method_var.get(),
-                'connect_segments': self.connect_segments_var.get()
-            }
-            
-            # 移除值为None的字段
-            config = {k: v for k, v in config.items() if v is not None}
-            
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=4)
-            print("已保存配置文件")
+            print("配置已保存")
         except Exception as e:
-            print(f"保存配置文件失败: {e}")
+            print(f"保存配置时发生错误: {e}")
     
     def load_config_value(self, key):
         """获取配置文件中的特定值"""
@@ -1171,6 +1178,48 @@ class ProgressWindow:
                 self.segment_days_label.config(text="")
         else:
             self.segment_days_label.config(text="")
+
+    def validate_symbol(self, entry):
+        """验证证券代码"""
+        symbol = self.symbol_var.get().strip()
+        if not symbol or not self.is_valid_symbol(symbol):
+            entry.config(foreground='red')
+            messagebox.showerror("输入错误", "无效的证券代码")
+        else:
+            entry.config(foreground='black')
+
+    def validate_date(self, entry):
+        """验证日期格式"""
+        date_str = entry.get().strip()
+        try:
+            datetime.strptime(date_str, '%Y-%m-%d')
+            entry.config(foreground='black')
+        except ValueError:
+            entry.config(foreground='red')
+            messagebox.showerror("输入错误", "无效的日期格式")
+
+    def is_valid_symbol(self, symbol):
+        """检查证券代码是否有效"""
+        try:
+            df = ak.fund_etf_spot_em()  # 或者使用其他适当的API
+            return symbol in df['代码'].values
+        except Exception:
+            return False
+
+    def validate_all_inputs(self):
+        """验证所有输入框的内容"""
+        # 验证证券代码
+        if not self.is_valid_symbol(self.symbol_var.get()):
+            return False
+        # 验证日期
+        try:
+            datetime.strptime(self.start_date_var.get(), '%Y-%m-%d')
+            datetime.strptime(self.end_date_var.get(), '%Y-%m-%d')
+        except ValueError:
+            return False
+        # 验证其他参数（如有需要）
+        # ... 其他验证逻辑 ...
+        return True
 
 # 不要在模块级别创建实例
 def create_progress_window():
