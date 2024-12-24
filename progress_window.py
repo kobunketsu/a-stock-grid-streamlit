@@ -717,7 +717,12 @@ class ProgressWindow:
             strategy.cash = strategy.initial_cash
             strategy.initial_positions = int(self.initial_positions_var.get())
             strategy.positions = strategy.initial_positions
-            
+            # 设置基准价格和价格范围
+            strategy.base_price = float(self.price_range_min_var.get())
+            strategy.price_range = (
+                float(self.price_range_min_var.get()),
+                float(self.price_range_max_var.get())
+            )
             # 捕获输出
             output = io.StringIO()
             with redirect_stdout(output):
