@@ -6,8 +6,7 @@ from datetime import datetime, timedelta
 import json
 import os
 import pandas as pd
-from progress_window import ProgressWindow
-from stock_grid_optimizer import GridStrategyOptimizer
+from app import *
 from trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
 
 class MockVar:
@@ -245,7 +244,7 @@ class TestProgressWindow(unittest.TestCase):
         
         # 测试配置文件错误
         self.mock_open.side_effect = Exception("文件错误")
-        self.progress_window.load_config()  # 应该不会抛出异常
+        self.progress_window.load_config()  # 应该不会抛出���常
         
         # 测试无效的进度更新
         self.progress_window.is_closed = True
@@ -275,7 +274,7 @@ class TestProgressWindow(unittest.TestCase):
         # 测试空证券代码
         self.progress_window.symbol_var.set("")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "请输入证券代码")
+        self.assertEqual(self.progress_window.error_message, "请输入证���代码")
         
         # 测试无效的证券代码
         self.progress_window.error_message = None

@@ -1,4 +1,4 @@
-from progress_window import create_progress_window
+from app import create_progress_window
 import optuna
 from datetime import datetime, timedelta
 import numpy as np
@@ -27,7 +27,7 @@ class GridStrategyOptimizer:
        - 上涨卖出比率 (0.3% ~ 3%)：触发卖出的上涨幅度
        - 上涨回调比率 (0.1% ~ 1%)：确认卖出的回调幅度，不超过卖出比率的30%       
        - 下跌买入比率 (0.3% ~ 3%)：触发买入的下跌幅度
-       - 下跌反弹比率 (0.1% ~ 1%)：确认买入的反弹幅度，不超过买���比率的30%
+       - 下跌反弹比率 (0.1% ~ 1%)：确认买入的反弹幅度，不超过买入比率的30%
        - 单次交易股数 (1000 ~ 最大可交易股数)：根据资金和最少交易次数计算
     
     3. 优化流程
@@ -331,7 +331,7 @@ class GridStrategyOptimizer:
 
     def _update_price_range_with_ma(self, price_data: Tuple[float, float]) -> None:
         """
-        根据价格和均线的关���更新价格范围
+        根据价格和均线的关系更新价格范围
         @param price_data: (收盘价, 均线价格)的元组
         """
         if not price_data:
