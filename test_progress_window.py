@@ -266,92 +266,134 @@ class TestProgressWindow(unittest.TestCase):
         self.mock_dump.side_effect = Exception("保存失败")
         self.progress_window.save_config()  # 应该不会抛出异常
     
-    def test_parameter_validation(self):
-        """测试参数验证"""
-        # 模拟 messagebox.showerror 和 print
-        with patch('tkinter.messagebox.showerror') as mock_error, \
-             patch('builtins.print') as mock_print:
-            # 测试空证券代码
-            self.progress_window.symbol_var.set("")
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "请输入证券代码")
-            mock_error.reset_mock()
-            
-            # 测试无效的证券代码
-            self.progress_window.symbol_var.set("invalid")
-            # 模拟空的 DataFrame
-            self.mock_etf_api.return_value = pd.DataFrame({'代码': [], '名称': []})
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "请输入有效的证券代码")
-            mock_error.reset_mock()
-            
-            # 恢复有效的证券代码
-            self.mock_etf_api.return_value = pd.DataFrame({
-                '代码': ['159300'],
-                '名称': ['沪深300ETF']
-            })
-            self.progress_window.symbol_var.set("159300")
-            
-            # 测试无效的日期格式
-            self.progress_window.start_date_var.set("invalid-date")
-            self.progress_window.start_optimization()
-            mock_error.assert_called()  # 只验证是否被调用，不验证具体参数
-            mock_error.reset_mock()
-            
-            # 恢复有效的日期格式
-            self.progress_window.start_date_var.set("2024-10-10")
-            
-            # 测试无效的初始资金
-            self.progress_window.initial_cash_var.set("-1000")
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "initial_cash must be greater than or equal to 0")
-            mock_error.reset_mock()
-            
-            # 测试初始资金为0（应该是有效的）
-            self.progress_window.initial_cash_var.set("0")
-            self.progress_window.start_optimization()
-            mock_error.assert_not_called()
-            
-            # 恢复有效的初始资金
-            self.progress_window.initial_cash_var.set("100000")
-            
-            # 测试无效的最小买入次数
-            self.progress_window.min_buy_times_var.set("-1")
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "min_buy_times must be greater than 0")
-            mock_error.reset_mock()
-            
-            # 恢复有效的最小买入次数
-            self.progress_window.min_buy_times_var.set("2")
-            
-            # 测试无效的价格区间
-            self.progress_window.price_range_min_var.set("4.3")
-            self.progress_window.price_range_max_var.set("3.9")
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "price_range_min must be less than price_range_max")
-            mock_error.reset_mock()
-            
-            # 恢复有效的价格区间
-            self.progress_window.price_range_min_var.set("3.9")
-            self.progress_window.price_range_max_var.set("4.3")
-            
-            # 测试无效的试验次数
-            self.progress_window.n_trials_var.set("-1")
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "n_trials must be greater than 0")
-            mock_error.reset_mock()
-            
-            # 恢复有效的试验次数
-            self.progress_window.n_trials_var.set("100")
-            
-            # 测试无效的 top_n
-            self.progress_window.top_n_var.set("-1")
-            self.progress_window.start_optimization()
-            mock_error.assert_called_with("参数错误", "top_n must be greater than 0")
-            mock_error.reset_mock()
-            
-            # 恢复有效的 top_n
-            self.progress_window.top_n_var.set("5")
+    def test_validate_symbol(self):
+        """测试证券代码验证"""
+        # 测试空证券代码
+        self.progress_window.symbol_var.set("")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "请输入证券代码")
+        
+        # 测试无效的证券代码
+        self.progress_window.error_message = None
+        self.progress_window.symbol_var.set("invalid")
+        self.mock_etf_api.return_value = pd.DataFrame({'代码': [], '名称': []})
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "请输入有效的证券代码")
+    
+    def test_validate_date(self):
+        """测试日期格式验证"""
+        # 设置有效的证券代码
+        self.mock_etf_api.return_value = pd.DataFrame({
+            '代码': ['159300'],
+            '名称': ['沪深300ETF']
+        })
+        self.progress_window.symbol_var.set("159300")
+        
+        # 测试无效的日期格式
+        self.progress_window.error_message = None
+        self.progress_window.start_date_var.set("invalid-date")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "日期格式无效")
+    
+    def test_validate_initial_cash(self):
+        """测试初始资金验证"""
+        # 设置基本有效参数
+        self._set_valid_basic_params()
+        
+        # 测试负数初始资金
+        self.progress_window.error_message = None
+        self.progress_window.initial_cash_var.set("-1000")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "initial_cash must be greater than or equal to 0")
+        
+        # 测试初始资金为0（应该是有效的）
+        self.progress_window.error_message = None
+        self.progress_window.initial_cash_var.set("0")
+        self.progress_window.start_optimization()
+        self.assertIsNone(self.progress_window.error_message)
+    
+    def test_validate_min_buy_times(self):
+        """测试最小买入次数验证"""
+        # 设置基本有效参数
+        self._set_valid_basic_params()
+        
+        # 确保优化未在运行
+        self.progress_window.optimization_running = False
+        
+        # 测试无效的最小买入次数（0）
+        self.progress_window.error_message = None
+        self.progress_window.min_buy_times_var.set("0")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "min_buy_times must be greater than 0")
+        
+        # 测试无效的最小买入次数（负数）
+        self.progress_window.error_message = None
+        self.progress_window.min_buy_times_var.set("-1")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "min_buy_times must be greater than 0")
+        
+        # 测试有效的最小买入次数
+        self.progress_window.error_message = None
+        self.progress_window.min_buy_times_var.set("1")
+        self.progress_window.start_optimization()
+        self.assertIsNone(self.progress_window.error_message)
+    
+    def test_validate_price_range(self):
+        """测试价格区间验证"""
+        # 设置基本有效参数
+        self._set_valid_basic_params()
+        
+        # 测试无效的价格区间
+        self.progress_window.error_message = None
+        self.progress_window.price_range_min_var.set("4.3")
+        self.progress_window.price_range_max_var.set("3.9")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "price_range_min must be less than price_range_max")
+    
+    def test_validate_n_trials(self):
+        """测试优化次数验证"""
+        # 设置基本有效参数
+        self._set_valid_basic_params()
+        
+        # 测试无效的试验次数
+        self.progress_window.error_message = None
+        self.progress_window.n_trials_var.set("-1")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "n_trials must be greater than 0")
+    
+    def test_validate_top_n(self):
+        """测试显示结果数量验证"""
+        # 设置基本有效参数
+        self._set_valid_basic_params()
+        
+        # 测试无效的 top_n
+        self.progress_window.error_message = None
+        self.progress_window.top_n_var.set("-1")
+        self.progress_window.start_optimization()
+        self.assertEqual(self.progress_window.error_message, "top_n must be greater than 0")
+    
+    def _set_valid_basic_params(self):
+        """设置基本的有效参数，用于参数验证测试"""
+        # 设置有效的证券代码
+        self.mock_etf_api.return_value = pd.DataFrame({
+            '代码': ['159300'],
+            '名称': ['沪深300ETF']
+        })
+        self.progress_window.symbol_var.set("159300")
+        
+        # 设置有效的日期
+        self.progress_window.start_date_var.set("2024-10-10")
+        self.progress_window.end_date_var.set("2024-12-20")
+        
+        # 设置其他基本参数
+        self.progress_window.ma_period_var.set("55")
+        self.progress_window.initial_positions_var.set("0")
+        self.progress_window.initial_cash_var.set("100000")
+        self.progress_window.min_buy_times_var.set("2")
+        self.progress_window.price_range_min_var.set("3.9")
+        self.progress_window.price_range_max_var.set("4.3")
+        self.progress_window.n_trials_var.set("100")
+        self.progress_window.top_n_var.set("5")
     
     def test_trade_details_display(self):
         """测试交易详情显示"""
@@ -442,4 +484,4 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.ma_protection_var.set(True)
         
         self.progress_window.save_config()
-        mock_dump.assert_called() 
+        mock_dump.assert_called()
