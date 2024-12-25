@@ -53,7 +53,8 @@ class ProgressWindow:
         self.sort_ascending = False
         self.current_results = []
         
-        self.config_file = "grid_strategy_config.json"
+        # 修改配置文件路径
+        self.config_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "grid_strategy_config.json")
         self.optimization_running = False
         self.start_button = None
         self.error_message = None  # 添加用于存储错误信息的属性
@@ -94,7 +95,7 @@ class ProgressWindow:
         # 参数输入控件
         self.create_parameter_inputs(params_frame)
         
-        # 中间结果���板
+        # 中间结果板
         results_frame = ttk.LabelFrame(main_frame, text="优化结果", padding=10)
         results_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         
@@ -224,7 +225,7 @@ class ProgressWindow:
         ttk.Separator(parent, orient='horizontal').grid(
             row=12, column=0, columnspan=2, sticky='ew', pady=10)
 
-        # 分段��测设置框架
+        # 分段回测设置框架
         segments_frame = ttk.LabelFrame(parent, text="分段回测设置", padding=5)
         segments_frame.grid(row=13, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
@@ -414,7 +415,7 @@ class ProgressWindow:
             self.trade_details.delete('1.0', tk.END)
             self.trade_details.config(state='disabled')
             
-            # 创建优化��实例
+            # 创建优化实例
             from stock_grid_optimizer import GridStrategyOptimizer  # 避免循环导入
             optimizer = GridStrategyOptimizer(
                 symbol=symbol,
@@ -556,7 +557,7 @@ class ProgressWindow:
                 self.root.destroy()
     
     def _check_thread_and_close(self):
-        """��查优化线程否束，如果结束则关闭窗口"""
+        """查优化线程否束，如果结束则关闭窗口"""
         if not self.optimization_thread.is_alive():
             self.root.destroy()
         else:
@@ -907,7 +908,7 @@ class ProgressWindow:
         self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
     
     def create_trade_details_area(self, parent):
-        """创建交易详情显示区域"""
+        """创���交易详情显示区域"""
         # 创建搜索框架
         search_frame = ttk.Frame(parent)
         search_frame.pack(fill=tk.X, pady=(0, 5))
@@ -942,7 +943,7 @@ class ProgressWindow:
     def update_symbol_info(self, source='code'):
         """
         更新证券信息
-        @param source: 'code' 表示从代码更新名称，'name' 表示从名称更新代码
+        @param source: 'code' 表���从代码更新名称，'name' 表示从名称更新代码
         """
         try:
             # 获取当前日期范围
@@ -968,7 +969,7 @@ class ProgressWindow:
                 is_new_symbol = not os.path.exists(self.config_file) or symbol != old_symbol
                 
                 if is_new_symbol:
-                    # 先尝试从���置文件中取该证券的价格范围
+                    # 先尝试从配置文件中取该证券的价格范围
                     config_data = self.load_symbol_config(symbol)
                     if config_data:
                         self.price_range_min_var.set(config_data.get('price_range_min', ''))
@@ -1037,7 +1038,7 @@ class ProgressWindow:
     def handle_entry_focus(self, event, widget):
         """处理输入框的焦点事件"""
         def delayed_focus():
-            if widget.winfo_exists():  # 确保widget���然存在
+            if widget.winfo_exists():  # 确保widget然存在
                 widget.focus_set()
                 widget.selection_range(0, tk.END)  # 选中所有文本
                 # 强制更新UI
@@ -1131,7 +1132,7 @@ class ProgressWindow:
         else:
             # 取消优化
             self.cancel_optimization()
-            self.start_button.configure(text="开始��化")
+            self.start_button.configure(text="开始优化")
             self.optimization_running = False
     
     def cancel_optimization(self):
@@ -1193,7 +1194,7 @@ class ProgressWindow:
         symbol = self.symbol_var.get().strip()
         if not symbol or not self.is_valid_symbol(symbol):
             entry.config(foreground='red')
-            messagebox.showerror("输��错误", "无效的证券代码")
+            messagebox.showerror("输入错误", "无效的证券代码")
         else:
             entry.config(foreground='black')
 

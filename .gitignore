@@ -1,5 +1,4 @@
 __pycache__/
 *.pyc
-grid_strategy_config.json
 .coverage
 
