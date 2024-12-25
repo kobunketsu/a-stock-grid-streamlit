@@ -325,21 +325,66 @@ class ProgressWindow:
                 messagebox.showerror("参数错误", "请输入证券代码")
                 return
             
+            # 验证证券代码是否有效
+            if not self.is_valid_symbol(symbol):
+                messagebox.showerror("参数错误", "请输入有效的证券代码")
+                return
+            
             # 自动判断证券类型
             security_type = "ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK"
             
-            start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
-            end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
-            ma_period = int(self.ma_period_var.get())
-            ma_protection = self.ma_protection_var.get()
-            initial_positions = int(self.initial_positions_var.get())
-            initial_cash = int(self.initial_cash_var.get())
-            min_buy_times = int(self.min_buy_times_var.get())
-            price_range = (
-                float(self.price_range_min_var.get()),
-                float(self.price_range_max_var.get())
-            )
-            n_trials = int(self.n_trials_var.get())
+            # 验证日期格式
+            try:
+                start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
+                end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
+            except ValueError:
+                messagebox.showerror("参数错误", "日期格式无效")
+                return
+            
+            # 验证其他参数
+            try:
+                ma_period = int(self.ma_period_var.get())
+                if ma_period <= 0:
+                    messagebox.showerror("参数错误", "ma_period must be greater than 0")
+                    return
+                
+                ma_protection = self.ma_protection_var.get()
+                
+                initial_positions = int(self.initial_positions_var.get())
+                if initial_positions < 0:
+                    messagebox.showerror("参数错误", "initial_positions must be greater than or equal to 0")
+                    return
+                
+                initial_cash = int(self.initial_cash_var.get())
+                if initial_cash < 0:
+                    messagebox.showerror("参数错误", "initial_cash must be greater than or equal to 0")
+                    return
+                
+                min_buy_times = int(self.min_buy_times_var.get())
+                if min_buy_times <= 0:
+                    messagebox.showerror("参数错误", "min_buy_times must be greater than 0")
+                    return
+                
+                price_range_min = float(self.price_range_min_var.get())
+                price_range_max = float(self.price_range_max_var.get())
+                if price_range_min >= price_range_max:
+                    messagebox.showerror("参数错误", "price_range_min must be less than price_range_max")
+                    return
+                
+                n_trials = int(self.n_trials_var.get())
+                if n_trials <= 0:
+                    messagebox.showerror("参数错误", "n_trials must be greater than 0")
+                    return
+                
+                top_n = int(self.top_n_var.get())
+                if top_n <= 0:
+                    messagebox.showerror("参数错误", "top_n must be greater than 0")
+                    return
+                
+                price_range = (price_range_min, price_range_max)
+            except ValueError as e:
+                messagebox.showerror("参数错误", str(e))
+                return
             
             # 更新UI状态
             self.optimization_running = True
@@ -689,7 +734,7 @@ class ProgressWindow:
         enable_segments = self.enable_segments.get()
         
         if enable_segments:
-            # 使用segment_utils中的方法构建时���段
+            # 使用segment_utils中的方法构建时段
             from segment_utils import build_segments
             segments = build_segments(
                 start_date=start_date,
@@ -1201,7 +1246,11 @@ class ProgressWindow:
     def is_valid_symbol(self, symbol):
         """检查证券代码是否有效"""
         try:
-            df = ak.fund_etf_spot_em()  # 或者使用其他适当的API
+            # 自动判断证券类型
+            if len(symbol) == 6 and symbol.startswith(("1", "5")):
+                df = ak.fund_etf_spot_em()
+            else:
+                df = ak.stock_zh_a_spot_em()
             return symbol in df['代码'].values
         except Exception:
             return False
