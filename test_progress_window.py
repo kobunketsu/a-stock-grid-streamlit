@@ -7,6 +7,8 @@ import json
 import os
 import pandas as pd
 from progress_window import ProgressWindow
+from stock_grid_optimizer import GridStrategyOptimizer
+from trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
 
 class MockVar:
     """模拟 Tkinter 的 StringVar"""
@@ -81,12 +83,13 @@ class TestProgressWindow(unittest.TestCase):
     @patch('tkinter.ttk.Progressbar')
     @patch('tkinter.ttk.Label')
     @patch('tkinter.scrolledtext.ScrolledText')
-    @patch('akshare.fund_etf_spot_em')
+    @patch('trading_utils.get_symbol_info')
+    @patch('trading_utils.calculate_price_range')
     @patch('json.load')
     @patch('json.dump')
     @patch('builtins.open')
-    def setUp(self, mock_open, mock_dump, mock_load, mock_etf_api, mock_text, mock_label, 
-             mock_progressbar, mock_tk):
+    def setUp(self, mock_open, mock_dump, mock_load, mock_price_range, mock_symbol_info, 
+             mock_text, mock_label, mock_progressbar, mock_tk):
         """测试前的准备工作"""
         # 模拟配置文件
         mock_load.return_value = {
@@ -107,11 +110,11 @@ class TestProgressWindow(unittest.TestCase):
             "connect_segments": False
         }
         
-        # 模拟ETF数据
-        mock_etf_api.return_value = pd.DataFrame({
-            '代码': ['159300'],
-            '名称': ['沪深300ETF']
-        })
+        # 模拟证券信息
+        mock_symbol_info.return_value = ("沪深300ETF", "ETF")
+        
+        # 模拟价格范围
+        mock_price_range.return_value = (3.9, 4.3)
         
         # 模拟Tk窗口和组件
         mock_root = MagicMock()
@@ -131,7 +134,8 @@ class TestProgressWindow(unittest.TestCase):
         # 保存mock对象以供测试使用
         self.mock_root = mock_root
         self.mock_text = mock_text_instance
-        self.mock_etf_api = mock_etf_api
+        self.mock_symbol_info = mock_symbol_info
+        self.mock_price_range = mock_price_range
         self.mock_dump = mock_dump
         self.mock_load = mock_load
         self.mock_open = mock_open
@@ -229,7 +233,7 @@ class TestProgressWindow(unittest.TestCase):
     def test_error_handling(self, mock_error):
         """测试错误处理"""
         # 测试API错误
-        self.mock_etf_api.side_effect = Exception("API错误")
+        self.mock_symbol_info.side_effect = Exception("API错误")
         # 模拟 messagebox.showerror 的调用
         mock_error.side_effect = lambda title, message: None
         # 模拟 print 函数，因为目标代码使用 print 而不是 messagebox
@@ -276,17 +280,14 @@ class TestProgressWindow(unittest.TestCase):
         # 测试无效的证券代码
         self.progress_window.error_message = None
         self.progress_window.symbol_var.set("invalid")
-        self.mock_etf_api.return_value = pd.DataFrame({'代码': [], '名称': []})
+        self.mock_symbol_info.return_value = (None, "ETF")
         self.progress_window.start_optimization()
         self.assertEqual(self.progress_window.error_message, "请输入有效的证券代码")
     
     def test_validate_date(self):
         """测试日期格式验证"""
         # 设置有效的证券代码
-        self.mock_etf_api.return_value = pd.DataFrame({
-            '代码': ['159300'],
-            '名称': ['沪深300ETF']
-        })
+        self.mock_symbol_info.return_value = ("沪深300ETF", "ETF")
         self.progress_window.symbol_var.set("159300")
         
         # 测试无效的日期格式
@@ -375,10 +376,7 @@ class TestProgressWindow(unittest.TestCase):
     def _set_valid_basic_params(self):
         """设置基本的有效参数，用于参数验证测试"""
         # 设置有效的证券代码
-        self.mock_etf_api.return_value = pd.DataFrame({
-            '代码': ['159300'],
-            '名称': ['沪深300ETF']
-        })
+        self.mock_symbol_info.return_value = ("沪深300ETF", "ETF")
         self.progress_window.symbol_var.set("159300")
         
         # 设置有效的日期
@@ -485,3 +483,6 @@ class TestProgressWindow(unittest.TestCase):
         
         self.progress_window.save_config()
         mock_dump.assert_called()
+
+if __name__ == '__main__':
+    unittest.main() 

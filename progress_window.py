@@ -9,7 +9,7 @@ import akshare as ak
 import pandas as pd
 import json
 import os
-from ma_utils import calculate_ma_price
+from trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
 
 class ProgressWindow:
     def __init__(self, total_trials):
@@ -94,7 +94,7 @@ class ProgressWindow:
         # 参数输入控件
         self.create_parameter_inputs(params_frame)
         
-        # 中间结果面板
+        # 中间结果���板
         results_frame = ttk.LabelFrame(main_frame, text="优化结果", padding=10)
         results_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         
@@ -224,7 +224,7 @@ class ProgressWindow:
         ttk.Separator(parent, orient='horizontal').grid(
             row=12, column=0, columnspan=2, sticky='ew', pady=10)
 
-        # 分段回测设置框架
+        # 分段��测设置框架
         segments_frame = ttk.LabelFrame(parent, text="分段回测设置", padding=5)
         segments_frame.grid(row=13, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
@@ -414,7 +414,7 @@ class ProgressWindow:
             self.trade_details.delete('1.0', tk.END)
             self.trade_details.config(state='disabled')
             
-            # 创建优化器实例
+            # 创建优化��实例
             from stock_grid_optimizer import GridStrategyOptimizer  # 避免循环导入
             optimizer = GridStrategyOptimizer(
                 symbol=symbol,
@@ -556,7 +556,7 @@ class ProgressWindow:
                 self.root.destroy()
     
     def _check_thread_and_close(self):
-        """检查优化线程是否束，如果结束则关闭窗口"""
+        """��查优化线程否束，如果结束则关闭窗口"""
         if not self.optimization_thread.is_alive():
             self.root.destroy()
         else:
@@ -718,7 +718,7 @@ class ProgressWindow:
         """滚动到文本开始"""
         if self.trade_details:
             self.trade_details.see('1.0')
-            # 将插入点移动到开始
+            # 将插入点移动到始
             self.trade_details.mark_set(tk.INSERT, '1.0')
             return 'break'  # 阻止事件继续传播
     
@@ -955,56 +955,32 @@ class ProgressWindow:
                     self.symbol_name_var.set("")
                     return
                 
-                # 自动判断证券类型
-                is_etf = len(symbol) == 6 and symbol.startswith(("1", "5"))
+                # 获取证券信息
+                name, security_type = get_symbol_info(symbol)
+                if name is None:
+                    self.symbol_name_var.set("未找到证券")
+                    return
+                
+                self.symbol_name_var.set(name)
                 
                 # 检查是否是新的证券代码
                 old_symbol = self.load_config_value('symbol')
                 is_new_symbol = not os.path.exists(self.config_file) or symbol != old_symbol
                 
-                if is_etf:
-                    # 获取ETF基金信息
-                    df = ak.fund_etf_spot_em()
-                    name = df[df['代码'] == symbol]['名称'].values[0]
-                    if is_new_symbol:
-                        # 获取历史数据
-                        hist_df = ak.fund_etf_hist_em(
-                            symbol=symbol,
-                            start_date=start_date.replace('-', ''),
-                            end_date=end_date.replace('-', ''),
-                            adjust="qfq"
-                        )
-                else:
-                    # 获取股票信息
-                    df = ak.stock_zh_a_spot_em()
-                    name = df[df['代码'] == symbol]['名称'].values[0]
-                    if is_new_symbol:
-                        # 获取历史数据
-                        hist_df = ak.stock_zh_a_hist(
-                            symbol=symbol,
-                            start_date=start_date.replace('-', ''),
-                            end_date=end_date.replace('-', ''),
-                            adjust="qfq"
-                        )
-                
-                self.symbol_name_var.set(name)
-                
-                # 如果是新证券，尝试从配置文件中获取价格范围
                 if is_new_symbol:
-                    # 先尝试从配置文件中取该证券的价格范围
+                    # 先尝试从���置文件中取该证券的价格范围
                     config_data = self.load_symbol_config(symbol)
                     if config_data:
                         self.price_range_min_var.set(config_data.get('price_range_min', ''))
                         self.price_range_max_var.set(config_data.get('price_range_max', ''))
                         print(f"已从配置加载价格范围: {config_data.get('price_range_min')} - {config_data.get('price_range_max')}")
-                    elif not hist_df.empty:
+                    else:
                         # 如果配置文件中没有，则使用历史数据计算价格范围
-                        price_min = hist_df['最低'].min()
-                        price_max = hist_df['最高'].max()
-                        # 设置价格范围（略微扩大范围）
-                        self.price_range_min_var.set(f"{price_min:.3f}")
-                        self.price_range_max_var.set(f"{price_max:.3f}")
-                        print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
+                        price_min, price_max = calculate_price_range(symbol, start_date, end_date, security_type)
+                        if price_min is not None and price_max is not None:
+                            self.price_range_min_var.set(f"{price_min:.3f}")
+                            self.price_range_max_var.set(f"{price_max:.3f}")
+                            print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
                 
             else:  # source == 'name'
                 name = self.symbol_name_var.get().strip()
@@ -1023,16 +999,9 @@ class ProgressWindow:
                     
                     # 检查是否是新的证券代码
                     if not os.path.exists(self.config_file) or new_symbol != self.load_config_value('symbol'):
-                        # 获取历史数据
-                        hist_df = ak.fund_etf_hist_em(
-                            symbol=new_symbol,
-                            start_date=start_date.replace('-', ''),
-                            end_date=end_date.replace('-', ''),
-                            adjust="qfq"
-                        )
-                        if not hist_df.empty:
-                            price_min = hist_df['最低'].min()
-                            price_max = hist_df['最高'].max()
+                        # 计算价格范围
+                        price_min, price_max = calculate_price_range(new_symbol, start_date, end_date)
+                        if price_min is not None and price_max is not None:
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
                             print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
@@ -1049,16 +1018,9 @@ class ProgressWindow:
                     
                     # 检查是否是新的证券代码
                     if not os.path.exists(self.config_file) or new_symbol != self.load_config_value('symbol'):
-                        # 获取历史数据
-                        hist_df = ak.stock_zh_a_hist(
-                            symbol=new_symbol,
-                            start_date=start_date.replace('-', ''),
-                            end_date=end_date.replace('-', ''),
-                            adjust="qfq"
-                        )
-                        if not hist_df.empty:
-                            price_min = hist_df['最低'].min()
-                            price_max = hist_df['最高'].max()
+                        # 计算价格范围
+                        price_min, price_max = calculate_price_range(new_symbol, start_date, end_date, "STOCK")
+                        if price_min is not None and price_max is not None:
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
                             print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
@@ -1075,7 +1037,7 @@ class ProgressWindow:
     def handle_entry_focus(self, event, widget):
         """处理输入框的焦点事件"""
         def delayed_focus():
-            if widget.winfo_exists():  # 确保widget仍然存在
+            if widget.winfo_exists():  # 确保widget���然存在
                 widget.focus_set()
                 widget.selection_range(0, tk.END)  # 选中所有文本
                 # 强制更新UI
@@ -1169,7 +1131,7 @@ class ProgressWindow:
         else:
             # 取消优化
             self.cancel_optimization()
-            self.start_button.configure(text="开始优化")
+            self.start_button.configure(text="开始��化")
             self.optimization_running = False
     
     def cancel_optimization(self):
@@ -1231,7 +1193,7 @@ class ProgressWindow:
         symbol = self.symbol_var.get().strip()
         if not symbol or not self.is_valid_symbol(symbol):
             entry.config(foreground='red')
-            messagebox.showerror("输入错误", "无效的证券代码")
+            messagebox.showerror("输��错误", "无效的证券代码")
         else:
             entry.config(foreground='black')
 
@@ -1247,15 +1209,7 @@ class ProgressWindow:
 
     def is_valid_symbol(self, symbol):
         """检查证券代码是否有效"""
-        try:
-            # 自动判断证券类型
-            if len(symbol) == 6 and symbol.startswith(("1", "5")):
-                df = ak.fund_etf_spot_em()
-            else:
-                df = ak.stock_zh_a_spot_em()
-            return symbol in df['代码'].values
-        except Exception:
-            return False
+        return is_valid_symbol(symbol)
 
     def validate_all_inputs(self):
         """验证所有输入框的内容"""
