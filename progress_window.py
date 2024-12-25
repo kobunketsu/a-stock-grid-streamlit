@@ -944,7 +944,7 @@ class ProgressWindow:
                 
                 # 如果是新证券，尝试从配置文件中获取价格范围
                 if is_new_symbol:
-                    # 先尝试从配置文件中���取该证券的价格范围
+                    # 先尝试从配置文件中取该证券的价格范围
                     config_data = self.load_symbol_config(symbol)
                     if config_data:
                         self.price_range_min_var.set(config_data.get('price_range_min', ''))
@@ -1014,7 +1014,7 @@ class ProgressWindow:
                             price_max = hist_df['最高'].max()
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
-                            print(f"已更新价格���围: {price_min:.3f} - {price_max:.3f}")
+                            print(f"已更新价格范围: {price_min:.3f} - {price_max:.3f}")
                 else:
                     print(f"未找到包含 '{name}' 的证券")
                 
@@ -1220,6 +1220,18 @@ class ProgressWindow:
         # 验证其他参数（如有需要）
         # ... 其他验证逻辑 ...
         return True
+
+    def cleanup(self):
+        """清理优化状态"""
+        self.optimization_running = False
+        if self.root and not self.is_closed:
+            self.start_button.configure(text="开始优化")
+            self.label["text"] = "优化已取消"
+            self.progress["value"] = 0
+            self.percent_label["text"] = "0%"
+            self.time_label["text"] = "耗时: 0:00:00"
+            self.eta_label["text"] = "预计剩余: --:--:--"
+            self.root.update()
 
 # 不要在模块级别创建实例
 def create_progress_window():
