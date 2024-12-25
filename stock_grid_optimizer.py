@@ -27,7 +27,7 @@ class GridStrategyOptimizer:
        - 上涨卖出比率 (0.3% ~ 3%)：触发卖出的上涨幅度
        - 上涨回调比率 (0.1% ~ 1%)：确认卖出的回调幅度，不超过卖出比率的30%       
        - 下跌买入比率 (0.3% ~ 3%)：触发买入的下跌幅度
-       - 下跌反弹比率 (0.1% ~ 1%)：确认买入的反弹幅度，不超过买入比率的30%
+       - 下跌反弹比率 (0.1% ~ 1%)：确认买入的反弹幅度，不超过买���比率的30%
        - 单次交易股数 (1000 ~ 最大可交易股数)：根据资金和最少交易次数计算
     
     3. 优化流程
@@ -331,7 +331,7 @@ class GridStrategyOptimizer:
 
     def _update_price_range_with_ma(self, price_data: Tuple[float, float]) -> None:
         """
-        根据价格和均线的关系更新价格范围
+        根据价格和均线的关���更新价格范围
         @param price_data: (收盘价, 均线价格)的元组
         """
         if not price_data:
@@ -846,6 +846,48 @@ class GridStrategyOptimizer:
             end_date=date_str,
             adjust="qfq"
         )
+
+    def _validate_params(self, params: Dict[str, float]) -> bool:
+        """
+        验证参数是否有效
+        
+        Args:
+            params: 包含策略参数的字典
+            
+        Returns:
+            bool: 参数是否有效
+        """
+        try:
+            # 验证参数是否在有效范围内
+            for param_name, value in params.items():
+                if param_name not in self.param_ranges:
+                    print(f"未知参数: {param_name}")
+                    return False
+                
+                param_range = self.param_ranges[param_name]
+                if value < param_range["min"] or value > param_range["max"]:
+                    print(f"参数 {param_name} 的值 {value} 超出范围 [{param_range['min']}, {param_range['max']}]")
+                    return False
+            
+            # 验证回调率和反弹率是否小于主要比率
+            if params["up_callback_rate"] >= params["up_sell_rate"]:
+                print("上涨回调率必须小于上涨卖出率")
+                return False
+                
+            if params["down_rebound_rate"] >= params["down_buy_rate"]:
+                print("下跌反弹率必须小于下跌买入率")
+                return False
+            
+            # 验证交易股数是否为正整数
+            if not isinstance(params["shares_per_trade"], (int, float)) or params["shares_per_trade"] <= 0:
+                print("交易股数必须为正数")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"参数验证过程中发生错误: {e}")
+            return False
 
 if __name__ == "__main__":
     progress_window = create_progress_window()

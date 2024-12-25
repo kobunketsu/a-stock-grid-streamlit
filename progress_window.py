@@ -56,6 +56,7 @@ class ProgressWindow:
         self.config_file = "grid_strategy_config.json"
         self.optimization_running = False
         self.start_button = None
+        self.error_message = None  # 添加用于存储错误信息的属性
         
     def create_window(self):
         self.root = tk.Tk()
@@ -314,6 +315,9 @@ class ProgressWindow:
     
     def start_optimization(self, event=None):
         """开始优化按钮的回调函数"""
+        # 重置错误信息
+        self.error_message = None
+        
         try:
             # 如果已经在运行，直接返回
             if self.optimization_running:
@@ -322,12 +326,12 @@ class ProgressWindow:
             # 获取并验证参数
             symbol = self.symbol_var.get().strip()
             if not symbol:
-                messagebox.showerror("参数错误", "请输入证券代码")
+                self.error_message = "请输入证券代码"
                 return
             
             # 验证证券代码是否有效
             if not self.is_valid_symbol(symbol):
-                messagebox.showerror("参数错误", "请输入有效的证券代码")
+                self.error_message = "请输入有效的证券代码"
                 return
             
             # 自动判断证券类型
@@ -338,52 +342,52 @@ class ProgressWindow:
                 start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
                 end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
             except ValueError:
-                messagebox.showerror("参数错误", "日期格式无效")
+                self.error_message = "日期格式无效"
                 return
             
             # 验证其他参数
             try:
                 ma_period = int(self.ma_period_var.get())
                 if ma_period <= 0:
-                    messagebox.showerror("参数错误", "ma_period must be greater than 0")
+                    self.error_message = "ma_period must be greater than 0"
                     return
                 
                 ma_protection = self.ma_protection_var.get()
                 
                 initial_positions = int(self.initial_positions_var.get())
                 if initial_positions < 0:
-                    messagebox.showerror("参数错误", "initial_positions must be greater than or equal to 0")
+                    self.error_message = "initial_positions must be greater than or equal to 0"
                     return
                 
                 initial_cash = int(self.initial_cash_var.get())
                 if initial_cash < 0:
-                    messagebox.showerror("参数错误", "initial_cash must be greater than or equal to 0")
+                    self.error_message = "initial_cash must be greater than or equal to 0"
                     return
                 
                 min_buy_times = int(self.min_buy_times_var.get())
                 if min_buy_times <= 0:
-                    messagebox.showerror("参数错误", "min_buy_times must be greater than 0")
+                    self.error_message = "min_buy_times must be greater than 0"
                     return
                 
                 price_range_min = float(self.price_range_min_var.get())
                 price_range_max = float(self.price_range_max_var.get())
                 if price_range_min >= price_range_max:
-                    messagebox.showerror("参数错误", "price_range_min must be less than price_range_max")
+                    self.error_message = "price_range_min must be less than price_range_max"
                     return
                 
                 n_trials = int(self.n_trials_var.get())
                 if n_trials <= 0:
-                    messagebox.showerror("参数错误", "n_trials must be greater than 0")
+                    self.error_message = "n_trials must be greater than 0"
                     return
                 
                 top_n = int(self.top_n_var.get())
                 if top_n <= 0:
-                    messagebox.showerror("参数错误", "top_n must be greater than 0")
+                    self.error_message = "top_n must be greater than 0"
                     return
                 
                 price_range = (price_range_min, price_range_max)
             except ValueError as e:
-                messagebox.showerror("参数错误", str(e))
+                self.error_message = str(e)
                 return
             
             # 更新UI状态
@@ -449,9 +453,7 @@ class ProgressWindow:
                         
                 except Exception as e:
                     if not self.is_closed:
-                        self.root.after(0, lambda: messagebox.showerror("优化错误", str(e)))
-                        self.label["text"] = "优化失败"
-                        self.start_button.configure(text="开始优化")
+                        self.root.after(0, lambda: self.start_button.configure(text="开始优化"))
                         self.optimization_running = False
                 finally:
                     # 确保状态正确置
@@ -465,11 +467,11 @@ class ProgressWindow:
             self.optimization_thread.start()
             
         except ValueError as e:
-            messagebox.showerror("参数错误", str(e))
+            self.error_message = str(e)
             self.start_button.configure(text="开始优化")
             self.optimization_running = False
         except Exception as e:
-            messagebox.showerror("错误", f"启动优化失败: {str(e)}")
+            self.error_message = f"启动优化失败: {str(e)}"
             self.start_button.configure(text="开始优化")
             self.optimization_running = False
     

@@ -33,7 +33,7 @@ class TestGridStrategy(unittest.TestCase):
             '成交量': [1000000] * len(dates),
             '成交额': [4000000] * len(dates)
         })
-
+    
     def test_initialization(self):
         """测试策略初始化"""
         # 测试正常初始化
@@ -54,10 +54,10 @@ class TestGridStrategy(unittest.TestCase):
             strategy.backtest()
         
         strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
-        strategy.price_range = (4.3, 3.9)  # 无间隔
+        strategy.price_range = (4.3, 3.9)  # 无效的价格区间
         with self.assertRaises(ValueError):
             strategy.backtest()
-
+    
     def test_buy_operation(self):
         """测试买入操作"""
         # 测试正常买入
@@ -77,7 +77,7 @@ class TestGridStrategy(unittest.TestCase):
         result = self.strategy.buy(4.0, "2024-01-01")
         self.assertFalse(result)
         self.assertEqual(self.strategy.failed_trades["现金不足"], 1)
-
+    
     def test_sell_operation(self):
         """测试卖出操作"""
         # 测试正常卖出
@@ -97,7 +97,7 @@ class TestGridStrategy(unittest.TestCase):
         result = self.strategy.sell(4.0, "2024-01-01")
         self.assertFalse(result)
         self.assertEqual(self.strategy.failed_trades["无持仓"], 1)
-
+    
     @patch('akshare.fund_etf_hist_em')
     def test_backtest(self, mock_hist_data):
         """测试回测功能"""
@@ -117,7 +117,7 @@ class TestGridStrategy(unittest.TestCase):
         
         # 验证mock函数被正确调用
         mock_hist_data.assert_called_once()
-
+    
     def test_calculate_profit(self):
         """测试收益计算"""
         self.strategy.initial_cash = 100000
@@ -133,7 +133,7 @@ class TestGridStrategy(unittest.TestCase):
         # 测试亏损计算
         self.strategy.calculate_profit(3.8, verbose=True)
         self.assertLess(self.strategy.final_profit_rate, 0)
-
+    
     def test_ma_protection_edge_cases(self):
         """测试均线保护的边界条件"""
         self.strategy.ma_protection = True
@@ -151,7 +151,7 @@ class TestGridStrategy(unittest.TestCase):
         self.strategy.ma_protection = False
         self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, True))
         self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, False))
-
+    
     def test_trade_failure_recording(self):
         """测试交易失败记录"""
         # 测试买入失败记录
@@ -170,7 +170,7 @@ class TestGridStrategy(unittest.TestCase):
         
         self.strategy.sell(4.4, '2024-01-01')  # 高于最高价
         self.assertEqual(self.strategy.failed_trades['卖出价格超范围'], 1)
-
+    
     def test_stock_data_fetching(self):
         """测试股票数据获取"""
         # 设置为股票类型
@@ -181,7 +181,7 @@ class TestGridStrategy(unittest.TestCase):
             mock_hist_data.return_value = self.mock_hist_data
             profit_rate = self.strategy.backtest('2024-01-01', '2024-01-05')
             self.assertIsInstance(profit_rate, float)
-        
+    
     def test_empty_data_handling(self):
         """测试空数据处理"""
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
@@ -191,7 +191,7 @@ class TestGridStrategy(unittest.TestCase):
             # 测试空数据异常
             with self.assertRaises(Exception):
                 self.strategy.backtest('2024-01-01', '2024-01-05')
-                
+    
     def test_verbose_output(self):
         """测试详细输出模式"""
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
@@ -204,18 +204,18 @@ class TestGridStrategy(unittest.TestCase):
             
             # 测试带详细输出的收益计算
             self.strategy.calculate_profit(4.0, verbose=True)
-
+    
     def test_invalid_date_format(self):
         """测试无效日期格式"""
         with self.assertRaises(ValueError):
             self.strategy.buy(4.0, "invalid-date")
-        
+    
     def test_future_date_trading(self):
         """测试未来日期交易"""
         future_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
         self.assertFalse(self.strategy.buy(4.0, future_date))
         self.assertFalse(self.strategy.sell(4.0, future_date))
-
+    
     def test_date_format_conversion(self):
         """测试日期格式转换"""
         # 测试 pd.Timestamp 格式
@@ -225,7 +225,7 @@ class TestGridStrategy(unittest.TestCase):
         # 测试字符串格式
         str_date = '2024-01-01'
         self.assertTrue(self.strategy.buy(4.0, str_date))
-
+    
     def test_ma_protection_with_invalid_data(self):
         """测试均线保护在数据无效时的处理"""
         self.strategy.ma_protection = True
