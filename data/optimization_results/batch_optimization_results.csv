@@ -1,0 +1,4 @@
+symbol,name,profit_rate,trade_count,failed_trades,best_params,price_range
+159531,中证2000ETF,22.658187375907946,8,"{'无持仓': 4, '卖出价格超范围': 308, '现金不足': 2, '买入价格超范围': 0}","{'up_sell_rate': 0.022, 'down_buy_rate': 0.016, 'up_callback_rate': 0.0015, 'down_rebound_rate': 0.0025, 'shares_per_trade': 52000}","(0.869, 0.955)"
+159845,中证1000ETF,12.195356508643542,9,"{'无持仓': 13, '卖出价格超范围': 121, '现金不足': 5, '买入价格超范围': 0}","{'up_sell_rate': 0.02, 'down_buy_rate': 0.0245, 'up_callback_rate': 0.0035, 'down_rebound_rate': 0.0045000000000000005, 'shares_per_trade': 22000}","(2.17, 2.44)"
+159300,300ETF,8.427803958678997,7,"{'无持仓': 107, '卖出价格超范围': 0, '现金不足': 5, '买入价格超范围': 0}","{'up_sell_rate': 0.003, 'down_buy_rate': 0.0285, 'up_callback_rate': 0.001, 'down_rebound_rate': 0.004, 'shares_per_trade': 24000}","(3.9, 4.3)"

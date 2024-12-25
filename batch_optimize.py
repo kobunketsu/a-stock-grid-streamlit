@@ -1,12 +1,17 @@
 import pandas as pd
 import akshare as ak
 from datetime import datetime
+import os
 from stockdata import GridStrategyOptimizer
 from progress_window import ProgressWindow
 import threading
 
 class BatchOptimizer:
     def __init__(self):
+        # 创建数据目录
+        self.data_dir = "data/optimization_results"
+        os.makedirs(self.data_dir, exist_ok=True)
+        
         # ETF配置：代码和价格区间
         self.etf_configs = {
             "159300": {"price_range": (3.9, 4.3)},
@@ -89,7 +94,9 @@ class BatchOptimizer:
                 ])
                 
                 # 保存到CSV文件
-                trials_df.to_csv(f"optimization_trials_{symbol}.csv", index=False)
+                output_path = os.path.join(self.data_dir, f"optimization_trials_{symbol}.csv")
+                trials_df.to_csv(output_path, index=False)
+                print(f"优化结果已保存到 {output_path}")
                 
         except Exception as e:
             print(f"优化 {symbol} ({config['name']}) 时发生错误: {e}")
@@ -164,8 +171,9 @@ class BatchOptimizer:
         
         # 保存结果到CSV文件
         results_df = pd.DataFrame(sorted_results)
-        results_df.to_csv("batch_optimization_results.csv", index=False)
-        print("\n详细结果已保存到 batch_optimization_results.csv")
+        output_path = os.path.join(self.data_dir, "batch_optimization_results.csv")
+        results_df.to_csv(output_path, index=False)
+        print(f"\n详细结果已保存到 {output_path}")
 
 if __name__ == "__main__":
     batch_optimizer = BatchOptimizer()
