@@ -6,6 +6,7 @@ import json
 import pandas as pd
 from src.app import *
 from src.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
+from locales.localization import _
 
 class TestStreamlitApp(unittest.TestCase):
     """Streamlit版本应用测试类"""
@@ -64,7 +65,7 @@ class TestStreamlitApp(unittest.TestCase):
     
     def test_validate_min_buy_times(self):
         """测试最小买入次数验证"""
-        # 测试无效的最小买���次数（0）
+        # 测试无效的最小买入次数（0）
         self.assertFalse(validate_min_buy_times(0))
         
         # 测试无效的最小买入次数（负数）
@@ -110,7 +111,7 @@ class TestStreamlitApp(unittest.TestCase):
         # 测试API错误
         mock_is_valid_symbol.side_effect = Exception("API错误")
         validate_symbol("159300")
-        mock_error.assert_called_with("验证证券代码失败: API错误")
+        mock_error.assert_called_with(_("failed_to_validate_symbol_format").format("API错误"))
         
         # 重置mock
         mock_is_valid_symbol.side_effect = None
@@ -118,7 +119,7 @@ class TestStreamlitApp(unittest.TestCase):
         
         # 测试日期验证错误
         validate_date(datetime(2024, 12, 20), datetime(2024, 10, 10))
-        mock_error.assert_called_with("结束日期必须晚于开始日期")
+        mock_error.assert_called_with(_("end_date_must_be_later_than_start_date"))
     
     @patch('streamlit.sidebar')
     @patch('streamlit.button')
@@ -131,7 +132,7 @@ class TestStreamlitApp(unittest.TestCase):
         main()
         
         # 验证按钮被创建
-        mock_button.assert_called_with("开始优化")
+        mock_button.assert_called_with(_("start_optimization"))
     
     @patch('json.dump')
     @patch('json.load')
@@ -192,7 +193,7 @@ class TestStreamlitApp(unittest.TestCase):
             },
             "profit_rate": 10.5,
             "trade_count": 50,
-            "failed_trades": {"买入价格��范围": 2}
+            "failed_trades": {_("buy_price_out_of_range"): 2}
         }
         
         # 调用显示函数
