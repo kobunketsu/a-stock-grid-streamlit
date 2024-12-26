@@ -11,5 +11,8 @@
     "price_range_min": 3.836,
     "price_range_max": 4.318,
     "n_trials": 100,
-    "top_n": 5
+    "top_n": 5,
+    "enable_segments": false,
+    "profit_calc_method": "mean",
+    "connect_segments": false
 }
