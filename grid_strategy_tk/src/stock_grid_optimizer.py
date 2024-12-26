@@ -1,4 +1,3 @@
-from app import create_progress_window
 import optuna
 from datetime import datetime, timedelta
 import numpy as np

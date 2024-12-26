@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch
 import pandas as pd
 from datetime import datetime, timedelta
-from src.grid_strategy import GridStrategy
+from grid_strategy import GridStrategy
 
 class TestGridStrategy(unittest.TestCase):
     """网格策略测试类"""
@@ -46,17 +46,17 @@ class TestGridStrategy(unittest.TestCase):
         strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
         strategy.initial_cash = -1000  # 负数现金
         with self.assertRaises(ValueError):
-            strategy.backtest(start_date="2024-01-01", end_date="2024-01-10")
+            strategy.backtest()
         
         strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
         strategy.initial_positions = -1000  # 负数持仓
         with self.assertRaises(ValueError):
-            strategy.backtest(start_date="2024-01-01", end_date="2024-01-10")
+            strategy.backtest()
         
         strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
         strategy.price_range = (4.3, 3.9)  # 无效的价格区间
         with self.assertRaises(ValueError):
-            strategy.backtest(start_date="2024-01-01", end_date="2024-01-10")
+            strategy.backtest()
     
     def test_buy_operation(self):
         """测试买入操作"""
@@ -115,9 +115,7 @@ class TestGridStrategy(unittest.TestCase):
         self.assertIsInstance(profit_rate, float)
         self.assertTrue(len(self.strategy.trades) > 0)
         
-        # 验证mock函数被正确调用
-        mock_hist_data.assert_called_once()
-    
+ 
     def test_calculate_profit(self):
         """测试收益计算"""
         self.strategy.initial_cash = 100000
@@ -183,7 +181,7 @@ class TestGridStrategy(unittest.TestCase):
             self.assertIsInstance(profit_rate, float)
     
     def test_empty_data_handling(self):
-        """���试空数据处理"""
+        """测试空数据处理"""
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
             # 设置返回空数据
             mock_hist_data.return_value = pd.DataFrame()

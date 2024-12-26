@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import pandas as pd
 from datetime import datetime, timedelta
-from src.segment_utils import build_segments, get_segment_days, BATCH_TO_DAYS_MAP
+from segment_utils import build_segments, get_segment_days, BATCH_TO_DAYS_MAP
 
 class TestSegmentUtils(unittest.TestCase):
     """时间段工具测试类"""
@@ -91,7 +91,7 @@ class TestSegmentUtils(unittest.TestCase):
         """测试边界条件"""
         mock_calendar.return_value = self.mock_calendar
         
-        # 测试最小批次（最长周期���
+        # 测试最小批次（最长周期）
         min_batch_segments = build_segments(self.start_date, self.end_date, 1)
         self.assertGreater(len(min_batch_segments), 0)
         

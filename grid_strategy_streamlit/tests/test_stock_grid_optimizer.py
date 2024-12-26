@@ -1,5 +1,5 @@
 import unittest
-from src.stock_grid_optimizer import GridStrategyOptimizer
+from stock_grid_optimizer import GridStrategyOptimizer
 from datetime import datetime
 import pandas as pd
 import numpy as np

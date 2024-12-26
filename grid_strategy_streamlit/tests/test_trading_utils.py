@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, Mock
 import pandas as pd
 from datetime import datetime, timedelta
-from src.trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
+from trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
 
 class TestMAUtils(unittest.TestCase):
     """均线工具测试类"""
@@ -192,7 +192,7 @@ class TestMAUtils(unittest.TestCase):
         # 测试有效ETF代码
         self.assertTrue(is_valid_symbol("159300"))
         
-        # 测试有效股票代码
+        # 测试有效股票代��
         self.assertTrue(is_valid_symbol("000001"))
         
         # 测试无效代码
