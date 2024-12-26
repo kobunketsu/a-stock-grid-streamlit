@@ -396,7 +396,7 @@ class GridStrategyOptimizer:
             strategy.base_price = self.fixed_params["base_price"]
             strategy.price_range = self.fixed_params["price_range"]
             
-            # 根据是否衔接设置初始资金和持仓
+            # 根据是否衔接���置初始资金和持仓
             if self.connect_segments and i > 0:
                 strategy.initial_positions = current_positions
                 strategy.positions = current_positions
@@ -888,7 +888,3 @@ class GridStrategyOptimizer:
         except Exception as e:
             print(f"参数验证过程中发生错误: {e}")
             return False
-
-if __name__ == "__main__":
-    progress_window = create_progress_window()
-    progress_window.root.mainloop()

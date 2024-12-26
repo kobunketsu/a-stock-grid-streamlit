@@ -5,9 +5,17 @@ from tkinter import ttk
 from datetime import datetime, timedelta
 import json
 import os
+import sys
 import pandas as pd
-from app import *
-from trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
+
+# 添加src目录到Python路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from src.app import ProgressWindow
+from src.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
+from src.stock_grid_optimizer import GridStrategyOptimizer
+from locales.localization import _
 
 class MockVar:
     """模拟 Tkinter 的 StringVar"""
@@ -244,7 +252,7 @@ class TestProgressWindow(unittest.TestCase):
         
         # 测试配置文件错误
         self.mock_open.side_effect = Exception("文件错误")
-        self.progress_window.load_config()  # 应该不会抛出���常
+        self.progress_window.load_config()  # 应该不会抛出异常
         
         # 测试无效的进度更新
         self.progress_window.is_closed = True
@@ -271,17 +279,17 @@ class TestProgressWindow(unittest.TestCase):
     
     def test_validate_symbol(self):
         """测试证券代码验证"""
-        # 测试空证券代码
+        # 测试空的证券代码
         self.progress_window.symbol_var.set("")
-        self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "请输入证���代码")
+        self.assertFalse(self.progress_window.validate_symbol())
+        self.assertEqual(self.progress_window.error_message, _("please_enter_symbol_code"))
         
         # 测试无效的证券代码
         self.progress_window.error_message = None
         self.progress_window.symbol_var.set("invalid")
         self.mock_symbol_info.return_value = (None, "ETF")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "请输入有效的证券代码")
+        self.assertEqual(self.progress_window.error_message, _("please_enter_valid_symbol_code"))
     
     def test_validate_date(self):
         """测试日期格式验证"""
@@ -293,7 +301,7 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.error_message = None
         self.progress_window.start_date_var.set("invalid-date")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "日期格式无效")
+        self.assertEqual(self.progress_window.error_message, _("invalid_date_format"))
     
     def test_validate_initial_cash(self):
         """测试初始资金验证"""
@@ -304,9 +312,9 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.error_message = None
         self.progress_window.initial_cash_var.set("-1000")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "initial_cash must be greater than or equal to 0")
+        self.assertEqual(self.progress_window.error_message, _("initial_cash_must_be_greater_than_or_equal_to_0"))
         
-        # 测试初始资金为0（应该是有效的）
+        # 测试初始资金为0（该是有效的）
         self.progress_window.error_message = None
         self.progress_window.initial_cash_var.set("0")
         self.progress_window.start_optimization()
@@ -324,13 +332,13 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.error_message = None
         self.progress_window.min_buy_times_var.set("0")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "min_buy_times must be greater than 0")
+        self.assertEqual(self.progress_window.error_message, _("min_buy_times_must_be_greater_than_0"))
         
         # 测试无效的最小买入次数（负数）
         self.progress_window.error_message = None
         self.progress_window.min_buy_times_var.set("-1")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "min_buy_times must be greater than 0")
+        self.assertEqual(self.progress_window.error_message, _("min_buy_times_must_be_greater_than_0"))
         
         # 测试有效的最小买入次数
         self.progress_window.error_message = None
@@ -348,7 +356,7 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.price_range_min_var.set("4.3")
         self.progress_window.price_range_max_var.set("3.9")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "price_range_min must be less than price_range_max")
+        self.assertEqual(self.progress_window.error_message, _("price_range_min_must_be_less_than_price_range_max"))
     
     def test_validate_n_trials(self):
         """测试优化次数验证"""
@@ -359,7 +367,7 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.error_message = None
         self.progress_window.n_trials_var.set("-1")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "n_trials must be greater than 0")
+        self.assertEqual(self.progress_window.error_message, _("n_trials_must_be_greater_than_0"))
     
     def test_validate_top_n(self):
         """测试显示结果数量验证"""
@@ -370,7 +378,7 @@ class TestProgressWindow(unittest.TestCase):
         self.progress_window.error_message = None
         self.progress_window.top_n_var.set("-1")
         self.progress_window.start_optimization()
-        self.assertEqual(self.progress_window.error_message, "top_n must be greater than 0")
+        self.assertEqual(self.progress_window.error_message, _("top_n_must_be_greater_than_0"))
     
     def _set_valid_basic_params(self):
         """设置基本的有效参数，用于参数验证测试"""
@@ -455,7 +463,7 @@ class TestProgressWindow(unittest.TestCase):
     
     def test_optimization_control(self):
         """测试优化控制功能"""
-        # 测试开始优化
+        # 测试开启优化
         self.progress_window.optimization_running = False
         with patch.object(self.progress_window, 'start_optimization'):
             self.progress_window.toggle_optimization()
@@ -482,6 +490,132 @@ class TestProgressWindow(unittest.TestCase):
         
         self.progress_window.save_config()
         mock_dump.assert_called()
+    
+    @patch('stock_grid_optimizer.GridStrategyOptimizer')
+    def test_start_optimization_success(self, mock_optimizer_class):
+        """测试成功开始优化"""
+        # 设置所有必需的参数
+        self._set_valid_basic_params()
+        
+        # 创建所需的 UI 组件的 mock 对象
+        self.progress_window.start_button = MagicMock()
+        
+        # 设置mock对象
+        self.mock_symbol_info.return_value = ("沪深300ETF", "ETF")
+        
+        # 创建模拟的优化器实例和返回值
+        mock_optimizer = MagicMock()
+        mock_optimizer_class.return_value = mock_optimizer
+        
+        # 模拟优化过程，不立即返回结果
+        def mock_optimize(*args, **kwargs):
+            # 验证优化运行状态
+            self.assertTrue(self.progress_window.optimization_running)
+            # 验证 UI 更新
+            self.progress_window.start_button.configure.assert_called_with(text=_("cancel_optimization"))
+            return {'study': MagicMock(), 'sorted_trials': []}
+            
+        mock_optimizer.optimize = mock_optimize
+        
+        # 确保优化未在运行
+        self.progress_window.optimization_running = False
+        
+        # 模拟 tkinter 的 after 方法
+        def mock_after(delay, callback):
+            if delay == 0:  # 立即执行的回调
+                callback()
+        
+        # 替换 root.after
+        self.progress_window.root.after = mock_after
+        
+        # 开始优化
+        self.progress_window.start_optimization()
+        
+        # 验证优化器是否被正确创建和调用
+        mock_optimizer_class.assert_called_once()
+    
+    def test_cancel_optimization(self):
+        """测试取消优化"""
+        # 设置优化运行状态
+        self.progress_window.optimization_running = True
+        self.progress_window.start_button.configure(text="取消优化")
+        self.progress_window.label = MagicMock()
+        self.progress_window.progress = MagicMock()
+        self.progress_window.percent_label = MagicMock()
+        
+        # 取消优化
+        self.progress_window.cancel_optimization()
+        
+        # 验证状态是否正确更新
+        self.assertFalse(self.progress_window.optimization_running)
+        self.progress_window.label.configure.assert_called_with(text=_("optimization_cancelled"))
+        self.progress_window.progress.configure.assert_called_with(value=0)
+        self.progress_window.percent_label.configure.assert_called_with(text="0%")
+    
+    def test_toggle_optimization(self):
+        """测试切换优化状态"""
+        # 初始状态：未运行
+        self.progress_window.optimization_running = False
+        self.progress_window.start_button = MagicMock()
+        
+        # 切换到运行状态
+        with patch.object(self.progress_window, 'start_optimization'):
+            self.progress_window.toggle_optimization()
+            self.progress_window.start_optimization.assert_called_once()
+            self.assertTrue(self.progress_window.optimization_running)
+            self.progress_window.start_button.configure.assert_called_with(text=_("cancel_optimization"))
+        
+        # 切换到停止状态
+        with patch.object(self.progress_window, 'cancel_optimization'):
+            self.progress_window.toggle_optimization()
+            self.progress_window.cancel_optimization.assert_called_once()
+            self.assertFalse(self.progress_window.optimization_running)
+            self.progress_window.start_button.configure.assert_called_with(text=_("start_optimization"))
+            
+    @patch('stock_grid_optimizer.GridStrategyOptimizer')
+    def test_optimization_with_segments(self, mock_optimizer_class):
+        """测试带有子区间的优化"""
+        # 设置有效的参数，启用子区间
+        self.progress_window.symbol_var.set("159300")
+        self.progress_window.start_date_var.set("2024-01-01")
+        self.progress_window.end_date_var.set("2024-12-31")
+        self.progress_window.ma_period_var.set("55")
+        self.progress_window.initial_positions_var.set("50000")
+        self.progress_window.initial_cash_var.set("100000")
+        self.progress_window.min_buy_times_var.set("2")
+        self.progress_window.price_range_min_var.set("3.9")
+        self.progress_window.price_range_max_var.set("4.3")
+        self.progress_window.n_trials_var.set("100")
+        self.progress_window.enable_segments.set(True)
+        self.progress_window.connect_segments_var.set(True)
+        self.progress_window.profit_calc_method_var.set("mean")
+        
+        # 创建模拟的优化器实例
+        mock_optimizer = MagicMock()
+        mock_optimizer_class.return_value = mock_optimizer
+        mock_optimizer.optimize.return_value = {
+            'study': MagicMock(),
+            'sorted_trials': []
+        }
+        
+        # 开始优化
+        self.progress_window.start_optimization()
+        
+        # 验证优化器是否被正确创建，包含子区间相关参数
+        mock_optimizer_class.assert_called_once_with(
+            symbol="159300",
+            security_type="ETF",
+            start_date=datetime(2024, 1, 1),
+            end_date=datetime(2024, 12, 31),
+            ma_period=55,
+            ma_protection=True,
+            initial_positions=50000,
+            initial_cash=100000,
+            min_buy_times=2,
+            price_range=(3.9, 4.3),
+            profit_calc_method="mean",
+            connect_segments=True
+        )
 
 if __name__ == '__main__':
     unittest.main() 

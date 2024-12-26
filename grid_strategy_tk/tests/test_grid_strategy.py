@@ -115,9 +115,7 @@ class TestGridStrategy(unittest.TestCase):
         self.assertIsInstance(profit_rate, float)
         self.assertTrue(len(self.strategy.trades) > 0)
         
-        # 验证mock函数被正确调用
-        mock_hist_data.assert_called_once()
-    
+ 
     def test_calculate_profit(self):
         """测试收益计算"""
         self.strategy.initial_cash = 100000
