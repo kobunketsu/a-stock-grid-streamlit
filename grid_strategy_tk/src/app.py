@@ -488,11 +488,11 @@ class ProgressWindow:
     
     def display_trade_details(self, trial):
         """显示特定参数组合的策略详情"""
-        # 清空现有内容
+        # 清��现有内容
         self.trade_details.config(state='normal')
         self.trade_details.delete('1.0', tk.END)
         
-        # 获取数和收益��
+        # 获取数和收益
         params = trial.params
         profit_rate = -trial.value
         
@@ -623,7 +623,7 @@ class ProgressWindow:
                 # 获取当前字体配置
                 current_font = self.trade_details['font']
                 if isinstance(current_font, str):
-                    # ���果是字符串格式，解析字体名称和大小
+                    # 果是字符串格式，解析字体名称和大小
                     font_name = current_font.split()[0]
                     size = int(current_font.split()[-1])
                 else:
@@ -719,7 +719,7 @@ class ProgressWindow:
             self.trade_details.see(tk.END)
             # 将插入点移动到最后
             self.trade_details.mark_set(tk.INSERT, tk.END)
-            return 'break'  # 阻止事件继续传播
+            return 'break'  # 阻止事件继续��播
     
     def scroll_to_start(self, event=None):
         """滚动到文本开始"""
@@ -777,34 +777,17 @@ class ProgressWindow:
             segments=segments
         )
         
-        # 显示结果
-        if enable_segments:
-            for i, segment in enumerate(results['segment_results'], 1):
-                self.trade_details.insert(tk.END, 
-                    f"\n{'='*20} {_('segment')} {i} {_('backtest')} {'='*20}\n")
-                self.trade_details.insert(tk.END, 
-                    f"{_('time_period')}: {segment['start_date']} {_('to')} {segment['end_date']}\n\n")
+        # 使用format_trade_details方法获取显示内容
+        output_lines = strategy.format_trade_details(
+            results=results,
+            enable_segments=enable_segments,
+            segments=segments,
+            profit_calc_method=self.profit_calc_method_var.get()
+        )
         
-        # 显示详细输出
-        self.trade_details.insert(tk.END, results['output'])
-        
-        # 如果是多段回测，显示汇总信息
-        if enable_segments and len(segments) > 1:
-            self.trade_details.insert(tk.END, "\n=== " + _("multi_segment_summary") + " ===\n")
-            self.trade_details.insert(tk.END, f"{_('total_segments')}: {len(segments)}\n")
-            
-            # 根据收益计算方式显示
-            if self.profit_calc_method_var.get() == _("mean"):
-                avg_profit = results['total_profit'] / len(segments)
-                self.trade_details.insert(tk.END, f"{_('average_profit_rate')}: {avg_profit:.2f}%\n")
-            else:  # 中值
-                self.trade_details.insert(tk.END, f"{_('median_profit_rate')}: {results['total_profit']:.2f}%\n")
-            
-            self.trade_details.insert(tk.END, f"{_('total_trade_count')}: {results['total_trades']}\n")
-            self.trade_details.insert(tk.END, "\n" + _("failed_trade_summary") + ":\n")
-            for reason, count in results['failed_trades_summary'].items():
-                if count > 0:
-                    self.trade_details.insert(tk.END, f"{reason}: {count} {_('times')}\n")
+        # 显示内容
+        for line in output_lines:
+            self.trade_details.insert(tk.END, line + "\n")
         
         # 设置为只读并滚动到顶部
         self.trade_details.config(state='disabled')

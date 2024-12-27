@@ -2,6 +2,12 @@ import unittest
 from unittest.mock import patch
 import pandas as pd
 from datetime import datetime, timedelta
+import os
+import sys
+
+# 添加src目录到Python路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 from grid_strategy import GridStrategy
 
 class TestGridStrategy(unittest.TestCase):
@@ -231,6 +237,78 @@ class TestGridStrategy(unittest.TestCase):
         # 即使没有MA数据，交易也应该能够进行
         self.assertTrue(self.strategy.buy(4.0, '2024-01-01'))
         self.assertTrue(self.strategy.sell(4.0, '2024-01-01'))
+
+    def test_format_trade_details(self):
+        """测试交易详情格式化功能"""
+        # 准备测试数据
+        results = {
+            'total_profit': 10.5,
+            'total_trades': 5,
+            'failed_trades_summary': {
+                '无持仓': 2,
+                '现金不足': 1
+            },
+            'segment_results': [
+                {
+                    'start_date': '2024-01-01',
+                    'end_date': '2024-01-05',
+                    'profit_rate': 5.2,
+                    'trades': 2
+                },
+                {
+                    'start_date': '2024-01-06',
+                    'end_date': '2024-01-10',
+                    'profit_rate': 5.3,
+                    'trades': 3
+                }
+            ],
+            'output': '详细回测输出内容'
+        }
+        
+        segments = [
+            (datetime(2024, 1, 1), datetime(2024, 1, 5)),
+            (datetime(2024, 1, 6), datetime(2024, 1, 10))
+        ]
+        
+        # 测试不启用分段回测的情况
+        output_lines = self.strategy.format_trade_details(
+            results=results,
+            enable_segments=False,
+            segments=None,
+            profit_calc_method="mean"
+        )
+        
+        # 验证输出内容
+        self.assertIsInstance(output_lines, list)
+        self.assertTrue(any('详细回测输出内容' in line for line in output_lines))
+        
+        # 测试启用分段回测的情况
+        output_lines = self.strategy.format_trade_details(
+            results=results,
+            enable_segments=True,
+            segments=segments,
+            profit_calc_method="mean"
+        )
+        
+        # 验证输出内容
+        self.assertTrue(any('分段 1 回测' in line for line in output_lines))
+        self.assertTrue(any('分段 2 回测' in line for line in output_lines))
+        self.assertTrue(any('多段回测汇总' in line for line in output_lines))
+        self.assertTrue(any('平均收益率: 5.25%' in line for line in output_lines))
+        self.assertTrue(any('总交易次数: 5' in line for line in output_lines))
+        self.assertTrue(any('无持仓: 2 次' in line for line in output_lines))
+        self.assertTrue(any('现金不足: 1 次' in line for line in output_lines))
+        
+        # 测试使用中位数计算方法
+        output_lines = self.strategy.format_trade_details(
+            results=results,
+            enable_segments=True,
+            segments=segments,
+            profit_calc_method="median"
+        )
+        
+        # 验证输出内容
+        self.assertTrue(any('中位数收益率: 10.50%' in line for line in output_lines))
 
     def test_run_strategy_details(self):
         """测试策略详情运行功能"""

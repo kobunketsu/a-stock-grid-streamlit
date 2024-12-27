@@ -392,7 +392,7 @@ class GridStrategy:
         segment_results = []
         all_output = []
         
-        # 如果没有提��时间段，则使用单一时间段
+        # 如果没有提供时间段，则使用单一时间段
         if not segments:
             segments = [(start_date, end_date)]
         
@@ -445,6 +445,50 @@ class GridStrategy:
             'segment_results': segment_results,
             'output': '\n'.join(all_output)
         }
+
+    def format_trade_details(self, results, enable_segments=False, segments=None, profit_calc_method="mean"):
+        """
+        格式化交易详情显示内容
+        
+        Args:
+            results (dict): run_strategy_details返回的结果字典
+            enable_segments (bool): 是否启用分段回测
+            segments (list): 时间段列表
+            profit_calc_method (str): 收益计算方法，"mean"或"median"
+            
+        Returns:
+            list: 包含所有显示内容的列表，每个元素是一行文本
+        """
+        output_lines = []
+        
+        # 显示分段结果
+        if enable_segments:
+            for i, segment in enumerate(results['segment_results'], 1):
+                output_lines.append(f"\n{'='*20} 分段 {i} 回测 {'='*20}")
+                output_lines.append(f"时间段: {segment['start_date']} 至 {segment['end_date']}\n")
+        
+        # 显示详细输出
+        output_lines.append(results['output'])
+        
+        # 如果是多段回测，显示汇总信息
+        if enable_segments and segments and len(segments) > 1:
+            output_lines.append("\n=== 多段回测汇总 ===")
+            output_lines.append(f"总段数: {len(segments)}")
+            
+            # 根据收益计算方式显示
+            if profit_calc_method == "mean":
+                avg_profit = results['total_profit'] / len(segments)
+                output_lines.append(f"平均收益率: {avg_profit:.2f}%")
+            else:  # 中值
+                output_lines.append(f"中位数收益率: {results['total_profit']:.2f}%")
+            
+            output_lines.append(f"总交易次数: {results['total_trades']}")
+            output_lines.append("\n失败交易统计:")
+            for reason, count in results['failed_trades_summary'].items():
+                if count > 0:
+                    output_lines.append(f"{reason}: {count} 次")
+        
+        return output_lines
 
 if __name__ == "__main__":
     strategy = GridStrategy()
