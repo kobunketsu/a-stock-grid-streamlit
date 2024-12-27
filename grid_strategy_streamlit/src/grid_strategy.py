@@ -1,6 +1,8 @@
 import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
+import io
+from contextlib import redirect_stdout
 
 class GridStrategy:
     def __init__(self, symbol="560610", symbol_name="国开ETF"):
@@ -364,6 +366,186 @@ class GridStrategy:
                 print(df_trades)
         
         return self.final_profit_rate
+
+    def run_strategy_details(self, strategy_params, start_date, end_date, segments=None):
+        """
+        运行策略详情分析
+        
+        Args:
+            strategy_params (dict): 策略参数字典
+            start_date (datetime): 开始日期
+            end_date (datetime): 结束日期
+            segments (list, optional): 时间段列表，每个元素为(start_date, end_date)元组
+            
+        Returns:
+            dict: 包含以下键的字典：
+                - total_profit (float): 总收益率
+                - total_trades (int): 总交易次数
+                - failed_trades_summary (dict): 失败交易统计
+                - segment_results (list): 每个时间段的结果列表
+                - output (str): 详细输出信息
+        """
+        # 初始化结果
+        total_profit = 0
+        total_trades = 0
+        failed_trades_summary = {}
+        segment_results = []
+        all_output = []
+        
+        # 如果没有提供时���段，则使用单一时间段
+        if not segments:
+            segments = [(start_date, end_date)]
+        
+        # 遍历每个时间段
+        for seg_start, seg_end in segments:
+            # 重置策略参数
+            for param, value in strategy_params.items():
+                setattr(self, param, value)
+            
+            # 重置初始状态
+            self.cash = self.initial_cash
+            self.positions = self.initial_positions
+            self.trades = []
+            self.failed_trades = {
+                "无持仓": 0,
+                "卖出价格超范围": 0,
+                "现金不足": 0,
+                "买入价格超范围": 0
+            }
+            
+            # 捕获输出
+            output = io.StringIO()
+            with redirect_stdout(output):
+                # 运行回测并获取收益率
+                profit_rate = self.backtest(seg_start, seg_end, verbose=True)
+            
+            # 收集当前段的结果
+            segment_result = {
+                'start_date': seg_start.strftime('%Y-%m-%d'),
+                'end_date': seg_end.strftime('%Y-%m-%d'),
+                'profit_rate': profit_rate,
+                'trades': len(self.trades),
+                'failed_trades': self.failed_trades.copy()
+            }
+            
+            # ��计统计信息
+            total_profit += profit_rate
+            total_trades += len(self.trades)
+            for reason, count in self.failed_trades.items():
+                failed_trades_summary[reason] = failed_trades_summary.get(reason, 0) + count
+            
+            # 保存输出和段结果
+            all_output.append(output.getvalue())
+            segment_results.append(segment_result)
+        
+        return {
+            'total_profit': total_profit,
+            'total_trades': total_trades,
+            'failed_trades_summary': failed_trades_summary,
+            'segment_results': segment_results,
+            'output': '\n'.join(all_output)
+        }
+
+    def format_trade_details(self, results, enable_segments=False, segments=None, profit_calc_method="mean"):
+        """
+        格式化交易详情显示内容
+        
+        Args:
+            results (dict): run_strategy_details返回的结果字典
+            enable_segments (bool): 是否启用分段回测
+            segments (list): 时间段列表
+            profit_calc_method (str): 收益计算方法，"mean"或"median"
+            
+        Returns:
+            list: 包含所有显示内容的列表，每个元素是一行文本
+        """
+        output_lines = []
+        
+        # 显示分段结果
+        if enable_segments:
+            for i, segment in enumerate(results['segment_results'], 1):
+                output_lines.append(f"\n{'='*20} 分段 {i} 回测 {'='*20}")
+                output_lines.append(f"时间段: {segment['start_date']} 至 {segment['end_date']}\n")
+        
+        # 显示详细输出
+        output_lines.append(results['output'])
+        
+        # 如果是多段回测，显示汇总信息
+        if enable_segments and segments and len(segments) > 1:
+            output_lines.append("\n=== 多段回测汇总 ===")
+            output_lines.append(f"总段数: {len(segments)}")
+            
+            # 根据收益计算方式显示
+            if profit_calc_method == "mean":
+                avg_profit = results['total_profit'] / len(segments)
+                output_lines.append(f"平均收益率: {avg_profit:.2f}%")
+            else:  # 中值
+                output_lines.append(f"中位数收益率: {results['total_profit']:.2f}%")
+            
+            output_lines.append(f"总交易次数: {results['total_trades']}")
+            output_lines.append("\n失败交易统计:")
+            for reason, count in results['failed_trades_summary'].items():
+                if count > 0:
+                    output_lines.append(f"{reason}: {count} 次")
+        
+        return output_lines
+
+    def format_trial_details(self, trial):
+        """
+        格式化试验结果的显示内容
+        
+        Args:
+            trial: Optuna试验对象，包含参数和结果
+            
+        Returns:
+            list: 包含所有显示内容的列表，每个元素是一行文本
+        """
+        output_lines = []
+        
+        # 获取收益率
+        profit_rate = -trial.value
+        
+        # 显示参数组合信息
+        output_lines.append("参数组合详情")
+        output_lines.append(f"总收益率: {profit_rate:.2f}%\n")
+        
+        # 参数名称映射
+        param_names = {
+            'up_sell_rate': '上涨卖出',
+            'up_callback_rate': '上涨回调',            
+            'down_buy_rate': '下跌买入',
+            'down_rebound_rate': '下跌反弹',
+            'shares_per_trade': '每次交易股数'
+        }
+        
+        # 显示参数详情
+        output_lines.append("参数详情:")
+        for key, value in trial.params.items():
+            if key == 'shares_per_trade':
+                output_lines.append(f"{param_names[key]}: {value:,}")
+            else:
+                output_lines.append(f"{param_names[key]}: {value*100:.2f}%")
+        
+        # 显示交易统计信息
+        output_lines.append(f"\n交易次数: {trial.user_attrs.get('trade_count', 'N/A')}")
+        
+        # 显示分段回测结果（如果有）
+        if 'segment_results' in trial.user_attrs:
+            output_lines.append("\n=== 分段回测详情 ===")
+            for i, segment in enumerate(trial.user_attrs['segment_results'], 1):
+                output_lines.append(f"\n分段 {i}:")
+                output_lines.append(f"时间段: {segment['start_date']} - {segment['end_date']}")
+                output_lines.append(f"收益率: {segment['profit_rate']:.2f}%")
+                output_lines.append(f"交易次数: {segment['trades']}")
+                
+                # 显示失败交易统计（如果有）
+                if segment.get('failed_trades'):
+                    output_lines.append("\n失败交易统计:")
+                    for reason, count in segment['failed_trades'].items():
+                        if count > 0:
+                            output_lines.append(f"  {reason}: {count} 次")
+        
+        return output_lines
 
 if __name__ == "__main__":
     strategy = GridStrategy()

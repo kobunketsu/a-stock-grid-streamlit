@@ -231,61 +231,18 @@ def display_trade_details(trial: Any) -> None:
         
     st.subheader(_("trade_details"))
     
-    # 获取参数和收益率
-    params = trial.params
-    profit_rate = -trial.value
-    print(f"[DEBUG] Displaying details for trial with profit rate: {profit_rate}")
+    # 创建策略实例
+    strategy = GridStrategy(
+        symbol=st.session_state.get('symbol', ''),
+        symbol_name=st.session_state.get('symbol_name', '')
+    )
     
-    # 显示参数组合信息
-    st.write(_("parameter_combination_details"))
-    st.write(f"{_('total_profit_rate')}: {profit_rate:.2f}%\n")
+    # 使用format_trial_details方法获取显示内容
+    output_lines = strategy.format_trial_details(trial)
     
-    # 参数名称映射
-    param_names = {
-        'up_sell_rate': _('up_sell'),
-        'up_callback_rate': _('up_callback'),            
-        'down_buy_rate': _('down_buy'),
-        'down_rebound_rate': _('down_rebound'),
-        'shares_per_trade': _('shares_per_trade')
-    }
-    
-    # 显示参数详情
-    st.write(_("parameter_details"))
-    for key, value in params.items():
-        if key == 'shares_per_trade':
-            st.write(f"{param_names[key]}: {value:,}")
-        else:
-            st.write(f"{param_names[key]}: {value*100:.2f}%")
-    
-    print("[DEBUG] Displaying trade statistics")
-    # 显示交易统计信息
-    st.write(f"{_('trade_count')}: {trial.user_attrs.get('trade_count', 'N/A')}")
-    
-    # ��示分段回测结果（如果有）
-    if 'segment_results' in trial.user_attrs:
-        print("[DEBUG] Displaying segment results")
-        st.write("=== " + _("segmented_backtest_details") + " ===")
-        segment_results = eval(trial.user_attrs["segment_results"])
-        for i, segment in enumerate(segment_results, 1):
-            st.write(f"\n{_('segment')} {i}:")
-            st.write(f"{_('time_period')}: {segment['start_date']} - {segment['end_date']}")
-            st.write(f"{_('profit_rate')}: {segment['profit_rate']:.2f}%")
-            st.write(f"{_('trade_count')}: {segment['trades']}")
-            
-            # 显示失败交易统计（如果有）
-            if segment.get('failed_trades'):
-                st.write("\n" + _("failed_trade_statistics") + ":")
-                for reason, count in segment['failed_trades'].items():
-                    if count > 0:
-                        st.write(f"  {_(reason)}: {count} {_('times')}")
-    
-    # 显示交易记录（如果有）
-    if 'trade_records' in trial.user_attrs:
-        print("[DEBUG] Displaying trade records")
-        st.write("\n=== " + _("trade_records") + " ===")
-        trade_records = eval(trial.user_attrs["trade_records"])
-        for record in trade_records:
-            st.write(record)
+    # 显示内容
+    for line in output_lines:
+        st.write(line)
 
 def load_config():
     """加载配置文件"""

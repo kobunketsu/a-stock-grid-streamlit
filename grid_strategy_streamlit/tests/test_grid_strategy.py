@@ -2,6 +2,12 @@ import unittest
 from unittest.mock import patch
 import pandas as pd
 from datetime import datetime, timedelta
+import os
+import sys
+
+# 添加src目录到Python路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
 from grid_strategy import GridStrategy
 
 class TestGridStrategy(unittest.TestCase):
@@ -114,8 +120,7 @@ class TestGridStrategy(unittest.TestCase):
         # 验证回测结果
         self.assertIsInstance(profit_rate, float)
         self.assertTrue(len(self.strategy.trades) > 0)
-        
- 
+    
     def test_calculate_profit(self):
         """测试收益计算"""
         self.strategy.initial_cash = 100000
@@ -153,7 +158,7 @@ class TestGridStrategy(unittest.TestCase):
     def test_trade_failure_recording(self):
         """测试交易失败记录"""
         # 测试买入失败记录
-        self.strategy.cash = 0  # 设置现金为0
+        self.strategy.cash = 0  # ��置现金为0
         self.strategy.buy(4.0, '2024-01-01')
         self.assertEqual(self.strategy.failed_trades['现金不足'], 1)
         
@@ -183,7 +188,7 @@ class TestGridStrategy(unittest.TestCase):
     def test_empty_data_handling(self):
         """测试空数据处理"""
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
-            # 设置返回空数据
+            # 设置返��空数据
             mock_hist_data.return_value = pd.DataFrame()
             
             # 测试空数据异常
@@ -232,6 +237,218 @@ class TestGridStrategy(unittest.TestCase):
         # 即使没有MA数据，交易也应该能够进行
         self.assertTrue(self.strategy.buy(4.0, '2024-01-01'))
         self.assertTrue(self.strategy.sell(4.0, '2024-01-01'))
+
+    def test_format_trade_details(self):
+        """测试交易详情格式化功能"""
+        # 准备测试数据
+        results = {
+            'total_profit': 10.5,
+            'total_trades': 5,
+            'failed_trades_summary': {
+                '无持仓': 2,
+                '现金不足': 1
+            },
+            'segment_results': [
+                {
+                    'start_date': '2024-01-01',
+                    'end_date': '2024-01-05',
+                    'profit_rate': 5.2,
+                    'trades': 2
+                },
+                {
+                    'start_date': '2024-01-06',
+                    'end_date': '2024-01-10',
+                    'profit_rate': 5.3,
+                    'trades': 3
+                }
+            ],
+            'output': '详细回测输出内容'
+        }
+        
+        segments = [
+            (datetime(2024, 1, 1), datetime(2024, 1, 5)),
+            (datetime(2024, 1, 6), datetime(2024, 1, 10))
+        ]
+        
+        # 测试不启用分段回测的情况
+        output_lines = self.strategy.format_trade_details(
+            results=results,
+            enable_segments=False,
+            segments=None,
+            profit_calc_method="mean"
+        )
+        
+        # 验证输出内容
+        self.assertIsInstance(output_lines, list)
+        self.assertTrue(any('详细回测输出内容' in line for line in output_lines))
+        
+        # 测试启用分段回测的情况
+        output_lines = self.strategy.format_trade_details(
+            results=results,
+            enable_segments=True,
+            segments=segments,
+            profit_calc_method="mean"
+        )
+        
+        # 验证输出内容
+        self.assertTrue(any('分段 1 回测' in line for line in output_lines))
+        self.assertTrue(any('分段 2 回测' in line for line in output_lines))
+        self.assertTrue(any('多段回测汇总' in line for line in output_lines))
+        self.assertTrue(any('平均收益率: 5.25%' in line for line in output_lines))
+        self.assertTrue(any('总交易次数: 5' in line for line in output_lines))
+        self.assertTrue(any('无持仓: 2 次' in line for line in output_lines))
+        self.assertTrue(any('现金不足: 1 次' in line for line in output_lines))
+        
+        # 测试使用中位数计算方法
+        output_lines = self.strategy.format_trade_details(
+            results=results,
+            enable_segments=True,
+            segments=segments,
+            profit_calc_method="median"
+        )
+        
+        # 验证输出内容
+        self.assertTrue(any('中位数收益率: 10.50%' in line for line in output_lines))
+
+    def test_run_strategy_details(self):
+        """测试策略详情运行功能"""
+        with patch('akshare.fund_etf_hist_em') as mock_hist_data:
+            # 设置模拟数据
+            mock_hist_data.return_value = self.mock_hist_data
+            
+            # 准备测试参数
+            strategy_params = {
+                'up_sell_rate': 0.01,
+                'up_callback_rate': 0.003,
+                'down_buy_rate': 0.01,
+                'down_rebound_rate': 0.003,
+                'shares_per_trade': 1000
+            }
+            
+            start_date = datetime(2024, 1, 1)
+            end_date = datetime(2024, 1, 10)
+            
+            # 测试单一时间段
+            results = self.strategy.run_strategy_details(
+                strategy_params=strategy_params,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            # 验证结果格式
+            self.assertIsInstance(results, dict)
+            self.assertIn('total_profit', results)
+            self.assertIn('total_trades', results)
+            self.assertIn('failed_trades_summary', results)
+            self.assertIn('segment_results', results)
+            self.assertIn('output', results)
+            
+            # 验证结果内容
+            self.assertIsInstance(results['total_profit'], float)
+            self.assertIsInstance(results['total_trades'], int)
+            self.assertIsInstance(results['failed_trades_summary'], dict)
+            self.assertIsInstance(results['segment_results'], list)
+            self.assertEqual(len(results['segment_results']), 1)
+            
+            # 测试多时间段
+            segments = [
+                (datetime(2024, 1, 1), datetime(2024, 1, 5)),
+                (datetime(2024, 1, 6), datetime(2024, 1, 10))
+            ]
+            
+            results = self.strategy.run_strategy_details(
+                strategy_params=strategy_params,
+                start_date=start_date,
+                end_date=end_date,
+                segments=segments
+            )
+            
+            # 验证多时间段结果
+            self.assertEqual(len(results['segment_results']), 2)
+            for segment_result in results['segment_results']:
+                self.assertIn('start_date', segment_result)
+                self.assertIn('end_date', segment_result)
+                self.assertIn('profit_rate', segment_result)
+                self.assertIn('trades', segment_result)
+                self.assertIn('failed_trades', segment_result)
+            
+            # 验证输出字符串
+            self.assertIsInstance(results['output'], str)
+            self.assertGreater(len(results['output']), 0)
+
+    def test_format_trial_details(self):
+        """测试试验结果格式化功能"""
+        # 创建模拟的trial对象
+        class MockTrial:
+            def __init__(self):
+                self.value = -10.5  # 负的收益率
+                self.params = {
+                    'up_sell_rate': 0.01,
+                    'up_callback_rate': 0.003,
+                    'down_buy_rate': 0.01,
+                    'down_rebound_rate': 0.003,
+                    'shares_per_trade': 1000
+                }
+                self.user_attrs = {
+                    'trade_count': 5,
+                    'segment_results': [
+                        {
+                            'start_date': '2024-01-01',
+                            'end_date': '2024-01-05',
+                            'profit_rate': 5.2,
+                            'trades': 2,
+                            'failed_trades': {
+                                '无持仓': 1,
+                                '现金不足': 1
+                            }
+                        },
+                        {
+                            'start_date': '2024-01-06',
+                            'end_date': '2024-01-10',
+                            'profit_rate': 5.3,
+                            'trades': 3,
+                            'failed_trades': {
+                                '无持仓': 1
+                            }
+                        }
+                    ]
+                }
+        
+        trial = MockTrial()
+        
+        # 获取格式化输出
+        output_lines = self.strategy.format_trial_details(trial)
+        
+        # 验证输出内容
+        self.assertIsInstance(output_lines, list)
+        
+        # 验证参数组合信息
+        self.assertTrue(any('参数组合详情' in line for line in output_lines))
+        self.assertTrue(any('总收益率: 10.50%' in line for line in output_lines))
+        
+        # 验证参数详情
+        self.assertTrue(any('参数详情' in line for line in output_lines))
+        self.assertTrue(any('上涨卖出: 1.00%' in line for line in output_lines))
+        self.assertTrue(any('上涨回调: 0.30%' in line for line in output_lines))
+        self.assertTrue(any('下跌买入: 1.00%' in line for line in output_lines))
+        self.assertTrue(any('下跌反弹: 0.30%' in line for line in output_lines))
+        self.assertTrue(any('每次交易股数: 1,000' in line for line in output_lines))
+        
+        # 验证交易统计
+        self.assertTrue(any('交易次数: 5' in line for line in output_lines))
+        
+        # 验证分段回测信息
+        self.assertTrue(any('分段回测详情' in line for line in output_lines))
+        self.assertTrue(any('分段 1:' in line for line in output_lines))
+        self.assertTrue(any('分段 2:' in line for line in output_lines))
+        self.assertTrue(any('时间段: 2024-01-01 - 2024-01-05' in line for line in output_lines))
+        self.assertTrue(any('收益率: 5.20%' in line for line in output_lines))
+        self.assertTrue(any('交易次数: 2' in line for line in output_lines))
+        
+        # 验证失败交易统计
+        self.assertTrue(any('失败交易统计' in line for line in output_lines))
+        self.assertTrue(any('无持仓: 1 次' in line for line in output_lines))
+        self.assertTrue(any('现金不足: 1 次' in line for line in output_lines))
 
 if __name__ == '__main__':
     unittest.main() 
