@@ -114,8 +114,7 @@ class TestGridStrategy(unittest.TestCase):
         # 验证回测结果
         self.assertIsInstance(profit_rate, float)
         self.assertTrue(len(self.strategy.trades) > 0)
-        
- 
+    
     def test_calculate_profit(self):
         """测试收益计算"""
         self.strategy.initial_cash = 100000
@@ -232,6 +231,72 @@ class TestGridStrategy(unittest.TestCase):
         # 即使没有MA数据，交易也应该能够进行
         self.assertTrue(self.strategy.buy(4.0, '2024-01-01'))
         self.assertTrue(self.strategy.sell(4.0, '2024-01-01'))
+
+    def test_run_strategy_details(self):
+        """测试策略详情运行功能"""
+        with patch('akshare.fund_etf_hist_em') as mock_hist_data:
+            # 设置模拟数据
+            mock_hist_data.return_value = self.mock_hist_data
+            
+            # 准备测试参数
+            strategy_params = {
+                'up_sell_rate': 0.01,
+                'up_callback_rate': 0.003,
+                'down_buy_rate': 0.01,
+                'down_rebound_rate': 0.003,
+                'shares_per_trade': 1000
+            }
+            
+            start_date = datetime(2024, 1, 1)
+            end_date = datetime(2024, 1, 10)
+            
+            # 测试单一时间段
+            results = self.strategy.run_strategy_details(
+                strategy_params=strategy_params,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+            # 验证结果格式
+            self.assertIsInstance(results, dict)
+            self.assertIn('total_profit', results)
+            self.assertIn('total_trades', results)
+            self.assertIn('failed_trades_summary', results)
+            self.assertIn('segment_results', results)
+            self.assertIn('output', results)
+            
+            # 验证结果内容
+            self.assertIsInstance(results['total_profit'], float)
+            self.assertIsInstance(results['total_trades'], int)
+            self.assertIsInstance(results['failed_trades_summary'], dict)
+            self.assertIsInstance(results['segment_results'], list)
+            self.assertEqual(len(results['segment_results']), 1)
+            
+            # 测试多时间段
+            segments = [
+                (datetime(2024, 1, 1), datetime(2024, 1, 5)),
+                (datetime(2024, 1, 6), datetime(2024, 1, 10))
+            ]
+            
+            results = self.strategy.run_strategy_details(
+                strategy_params=strategy_params,
+                start_date=start_date,
+                end_date=end_date,
+                segments=segments
+            )
+            
+            # 验证多时间段结果
+            self.assertEqual(len(results['segment_results']), 2)
+            for segment_result in results['segment_results']:
+                self.assertIn('start_date', segment_result)
+                self.assertIn('end_date', segment_result)
+                self.assertIn('profit_rate', segment_result)
+                self.assertIn('trades', segment_result)
+                self.assertIn('failed_trades', segment_result)
+            
+            # 验证输出字符串
+            self.assertIsInstance(results['output'], str)
+            self.assertGreater(len(results['output']), 0)
 
 if __name__ == '__main__':
     unittest.main() 

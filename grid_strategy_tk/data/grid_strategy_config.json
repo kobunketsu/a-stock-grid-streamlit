@@ -10,7 +10,7 @@
     "min_buy_times": "2",
     "price_range_min": "3.836",
     "price_range_max": "4.318",
-    "n_trials": "100",
+    "n_trials": "20",
     "top_n": "5",
     "profit_calc_method": "mean",
     "connect_segments": false

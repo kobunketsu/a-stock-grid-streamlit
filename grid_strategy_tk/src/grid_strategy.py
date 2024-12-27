@@ -1,6 +1,8 @@
 import akshare as ak
 import pandas as pd
 from datetime import datetime, timedelta
+import io
+from contextlib import redirect_stdout
 
 class GridStrategy:
     def __init__(self, symbol="560610", symbol_name="国开ETF"):
@@ -364,6 +366,85 @@ class GridStrategy:
                 print(df_trades)
         
         return self.final_profit_rate
+
+    def run_strategy_details(self, strategy_params, start_date, end_date, segments=None):
+        """
+        运行策略详情分析
+        
+        Args:
+            strategy_params (dict): 策略参数字典
+            start_date (datetime): 开始日期
+            end_date (datetime): 结束日期
+            segments (list, optional): 时间段列表，每个元素为(start_date, end_date)元组
+            
+        Returns:
+            dict: 包含以下键的字典：
+                - total_profit (float): 总收益率
+                - total_trades (int): 总交易次数
+                - failed_trades_summary (dict): 失败交易统计
+                - segment_results (list): 每个时间段的结果列表
+                - output (str): 详细输出信息
+        """
+        # 初始化结果
+        total_profit = 0
+        total_trades = 0
+        failed_trades_summary = {}
+        segment_results = []
+        all_output = []
+        
+        # 如果没有提��时间段，则使用单一时间段
+        if not segments:
+            segments = [(start_date, end_date)]
+        
+        # 遍历每个时间段
+        for seg_start, seg_end in segments:
+            # 重置策略参数
+            for param, value in strategy_params.items():
+                setattr(self, param, value)
+            
+            # 重置初始状态
+            self.cash = self.initial_cash
+            self.positions = self.initial_positions
+            self.trades = []
+            self.failed_trades = {
+                "无持仓": 0,
+                "卖出价格超范围": 0,
+                "现金不足": 0,
+                "买入价格超范围": 0
+            }
+            
+            # 捕获输出
+            output = io.StringIO()
+            with redirect_stdout(output):
+                # 运行回测并获取收益率
+                profit_rate = self.backtest(seg_start, seg_end, verbose=True)
+            
+            # 收集当前段的结果
+            segment_result = {
+                'start_date': seg_start.strftime('%Y-%m-%d'),
+                'end_date': seg_end.strftime('%Y-%m-%d'),
+                'profit_rate': profit_rate,
+                'trades': len(self.trades),
+                'failed_trades': self.failed_trades.copy()
+            }
+            
+            # 累计统计信息
+            total_profit += profit_rate
+            total_trades += len(self.trades)
+            for reason, count in self.failed_trades.items():
+                failed_trades_summary[reason] = failed_trades_summary.get(reason, 0) + count
+            
+            # 保存输出和段结果
+            all_output.append(output.getvalue())
+            segment_results.append(segment_result)
+        
+        return {
+            'total_profit': total_profit,
+            'total_trades': total_trades,
+            'failed_trades_summary': failed_trades_summary,
+            'segment_results': segment_results,
+            'output': '\n'.join(all_output)
+        }
 
 if __name__ == "__main__":
     strategy = GridStrategy()
