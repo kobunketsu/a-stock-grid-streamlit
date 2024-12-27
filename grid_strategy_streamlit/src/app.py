@@ -27,6 +27,125 @@ logging.basicConfig(
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(ROOT_DIR, "data", "grid_strategy_config.json")
 
+def display_strategy_details(strategy_params):
+    """
+    显示特定参数组合的策略详情
+    
+    Args:
+        strategy_params: 策略参数字典
+    """
+    print("[DEBUG] Entering display_strategy_details")
+    print(f"[DEBUG] Strategy params: {strategy_params}")
+    
+    st.subheader(_("trade_details"))
+    
+    # 获取时间段
+    try:
+        # 从session_state获取日期对象
+        start_date = st.session_state.get('start_date')
+        end_date = st.session_state.get('end_date')
+        
+        print(f"[DEBUG] Initial dates from session state - start_date: {start_date}, end_date: {end_date}")
+        
+        # 如果是字符串，转换为datetime对象
+        if isinstance(start_date, str):
+            start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        if isinstance(end_date, str):
+            end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            
+        # 如果没有获取到日期，使用默认值
+        if not start_date:
+            start_date = datetime.strptime('2024-10-10', '%Y-%m-%d')
+        if not end_date:
+            end_date = datetime.strptime('2024-12-20', '%Y-%m-%d')
+            
+        print(f"[DEBUG] Final dates - start_date: {start_date}, end_date: {end_date}")
+    except Exception as e:
+        st.error(f"日期格式错误: {str(e)}")
+        print(f"[DEBUG] Date parsing error: {str(e)}")
+        return
+    
+    # 获取是否启用多段回测
+    enable_segments = st.session_state.get('enable_segments', False)
+    segments = None
+    
+    print(f"[DEBUG] Enable segments: {enable_segments}")
+    
+    if enable_segments:
+        # 使用segment_utils中的方法构建时段
+        from segment_utils import build_segments
+        segments = build_segments(
+            start_date=start_date,
+            end_date=end_date,
+            min_buy_times=int(st.session_state.get('min_buy_times', 2))
+        )
+        print(f"[DEBUG] Built segments: {segments}")
+    
+    # 创建策略实例
+    symbol = st.session_state.get('symbol', '')
+    symbol_name = st.session_state.get('symbol_name', '')
+    print(f"[DEBUG] Creating strategy with symbol: {symbol}, symbol_name: {symbol_name}")
+    
+    strategy = GridStrategy(
+        symbol=symbol,
+        symbol_name=symbol_name
+    )
+    
+    # 设置初始资金和持仓
+    initial_cash = float(st.session_state.get('initial_cash', 100000))
+    initial_positions = int(st.session_state.get('initial_positions', 0))
+    print(f"[DEBUG] Setting initial cash: {initial_cash}, initial positions: {initial_positions}")
+    
+    strategy.initial_cash = initial_cash
+    strategy.initial_positions = initial_positions
+    
+    # 设置基准价格和价格范围
+    price_range_min = float(st.session_state.get('price_range_min', 3.9))
+    price_range_max = float(st.session_state.get('price_range_max', 4.3))
+    print(f"[DEBUG] Setting price range: min={price_range_min}, max={price_range_max}")
+    
+    strategy.base_price = price_range_min
+    strategy.price_range = (price_range_min, price_range_max)
+    
+    try:
+        # 运行策略详情分析
+        print("[DEBUG] Running strategy details analysis")
+        results = strategy.run_strategy_details(
+            strategy_params=strategy_params,
+            start_date=start_date,
+            end_date=end_date,
+            segments=segments
+        )
+        
+        if results is None:
+            print("[DEBUG] Strategy details analysis returned None")
+            st.error("策略分析未返回任何结果")
+            return
+            
+        print(f"[DEBUG] Strategy details analysis results: {results}")
+        
+        # 使用format_trade_details方法获取显示内容
+        print("[DEBUG] Formatting trade details")
+        output_lines = strategy.format_trade_details(
+            results=results,
+            enable_segments=enable_segments,
+            segments=segments,
+            profit_calc_method=st.session_state.get('profit_calc_method', 'mean')
+        )
+        
+        print(f"[DEBUG] Formatted output lines: {output_lines}")
+        
+        # 显示内容
+        for line in output_lines:
+            st.write(line)
+    except Exception as e:
+        print(f"[DEBUG] Error running strategy details: {str(e)}")
+        print(f"[DEBUG] Error type: {type(e)}")
+        import traceback
+        print(f"[DEBUG] Stack trace: {traceback.format_exc()}")
+        st.error(f"运行策略详情时发生错误: {str(e)}")
+        return
+
 def validate_all_inputs(
     symbol: str,
     start_date: datetime,
@@ -116,6 +235,22 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
             st.session_state['display_details'] = False
             st.session_state['current_trial'] = None
             st.session_state['current_trial_index'] = None
+            
+        # 保存当前的配置信息
+        st.session_state['saved_config'] = {
+            'symbol': st.session_state.get('symbol_input', ''),  # 从输入字段获取
+            'symbol_name': st.session_state.get('symbol_name', ''),
+            'start_date': st.session_state.get('start_date'),
+            'end_date': st.session_state.get('end_date'),
+            'initial_cash': st.session_state.get('initial_cash', 100000),
+            'initial_positions': st.session_state.get('initial_positions', 0),
+            'price_range_min': st.session_state.get('price_range_min', 3.9),
+            'price_range_max': st.session_state.get('price_range_max', 4.3),
+            'enable_segments': st.session_state.get('enable_segments', False),
+            'min_buy_times': st.session_state.get('min_buy_times', 2),
+            'profit_calc_method': st.session_state.get('profit_calc_method', 'mean')
+        }
+        print(f"[DEBUG] Saved config: {st.session_state['saved_config']}")
     elif 'optimization_results' not in st.session_state:
         print("[DEBUG] No results to display")
         return
@@ -193,6 +328,14 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
                     st.session_state['display_details'] = True
                     st.session_state['current_trial'] = trial
                     st.session_state['current_trial_index'] = i - 1
+                    
+                    # 恢复保存的配置信息
+                    if 'saved_config' in st.session_state:
+                        print(f"[DEBUG] Restoring saved config: {st.session_state['saved_config']}")
+                        for key, value in st.session_state['saved_config'].items():
+                            st.session_state[key] = value
+                            print(f"[DEBUG] Restored {key} = {value}")
+                            
                     st.experimental_rerun()
     
     # 在详情列中显示交易详情
@@ -210,7 +353,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
                 st.experimental_rerun()
             else:
                 print(f"[DEBUG] Displaying details for trial")
-                display_trade_details(st.session_state['current_trial'])
+                display_strategy_details(st.session_state['current_trial'].params)
         else:
             print("[DEBUG] No trial selected for details")
             st.write(_("click_view_details_to_see_trade_details"))
