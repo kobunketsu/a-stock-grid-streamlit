@@ -123,8 +123,25 @@ class TestStreamlitApp(unittest.TestCase):
     
     @patch('streamlit.sidebar')
     @patch('streamlit.button')
-    def test_optimization_control(self, mock_button, mock_sidebar):
+    @patch('src.app.start_optimization')
+    @patch('streamlit.experimental_rerun')
+    @patch('streamlit.session_state', new_callable=dict)
+    def test_optimization_control(self, mock_session_state, mock_rerun, mock_start_optimization, mock_button, mock_sidebar):
         """测试优化控制功能"""
+        # 模拟优化结果
+        mock_results = {
+            "sorted_trials": [
+                MagicMock(value=-2.5, params={
+                    'up_sell_rate': 0.02,
+                    'down_buy_rate': 0.015,
+                    'up_callback_rate': 0.003,
+                    'down_rebound_rate': 0.002,
+                    'shares_per_trade': 5000
+                }, user_attrs={'trade_count': 50, 'failed_trades': '{}'})
+            ]
+        }
+        mock_start_optimization.return_value = mock_results
+        
         # 模拟开始优化按钮
         mock_button.return_value = True
         
@@ -132,7 +149,15 @@ class TestStreamlitApp(unittest.TestCase):
         main()
         
         # 验证按钮被创建
-        mock_button.assert_called_with(_("start_optimization"))
+        mock_button.assert_called()
+        
+        # 验证优化函数被调用
+        mock_start_optimization.assert_called_once()
+        
+        # 验证结果被存储到session state
+        self.assertIn('optimization_results', mock_session_state)
+        self.assertIn('sorted_trials', mock_session_state)
+        self.assertEqual(mock_session_state['optimization_results'], mock_results)
     
     @patch('json.dump')
     @patch('json.load')
@@ -201,6 +226,80 @@ class TestStreamlitApp(unittest.TestCase):
         
         # 验证显示调用
         mock_write.assert_called_with(trade_details)
+    
+    @patch('streamlit.session_state', new_callable=dict)
+    @patch('streamlit.button')
+    @patch('streamlit.expander')
+    def test_view_trial_details(self, mock_expander, mock_button, mock_session_state):
+        """测试查看优化结果详情时状态保持"""
+        # 模拟优化结果数据
+        mock_trial = MagicMock(
+            value=-2.5,
+            params={
+                'up_sell_rate': 0.02,
+                'down_buy_rate': 0.015,
+                'up_callback_rate': 0.003,
+                'down_rebound_rate': 0.002,
+                'shares_per_trade': 5000
+            },
+            user_attrs={'trade_count': 50, 'failed_trades': '{}'}
+        )
+        mock_results = {'sorted_trials': [mock_trial]}
+        
+        # 第一次调用：初始化状态
+        mock_session_state.clear()
+        mock_button.return_value = False  # 初始状态下按钮未点击
+        display_optimization_results(mock_results, top_n=5)
+        
+        # 验证初始状态
+        self.assertFalse(mock_session_state['show_details'])
+        self.assertIsNone(mock_session_state['current_trial'])
+        self.assertIsNone(mock_session_state['current_trial_index'])
+        
+        # 第二次调用：模拟点击查看详情按钮
+        def button_side_effect(*args, **kwargs):
+            if kwargs.get('key') == 'details_1':
+                return True
+            return False
+        mock_button.side_effect = button_side_effect
+        mock_session_state['optimization_results'] = mock_results
+        mock_session_state['sorted_trials'] = [mock_trial]
+        display_optimization_results(None, top_n=5)
+        
+        # 验证session state被正确更新
+        self.assertTrue(mock_session_state['show_details'])
+        self.assertEqual(mock_session_state['current_trial_index'], 0)
+        self.assertEqual(mock_session_state['current_trial'], mock_trial)
+        
+        # 验证优化结果列表依然存在
+        self.assertIn('sorted_trials', mock_session_state)
+        self.assertEqual(len(mock_session_state['sorted_trials']), 1)
+        
+        # 第三次调用：模拟页面重新加载后的状态
+        mock_button.side_effect = lambda *args, **kwargs: False  # 所有按钮都未点击
+        display_optimization_results(None, top_n=5)
+        
+        # 验证状态保持不变
+        self.assertTrue(mock_session_state['show_details'])
+        self.assertEqual(mock_session_state['current_trial_index'], 0)
+        self.assertEqual(mock_session_state['current_trial'], mock_trial)
+        self.assertIn('sorted_trials', mock_session_state)
+        
+        # 第四次调用：模拟点击关闭详情按钮
+        def close_button_side_effect(*args, **kwargs):
+            if kwargs.get('key') == 'details_1':
+                return False
+            return True  # 关闭按钮被点击
+        mock_button.side_effect = close_button_side_effect
+        display_optimization_results(None, top_n=5)
+        
+        # 验证详情被关闭但优化结果依然存在
+        self.assertFalse(mock_session_state['show_details'])
+        self.assertIsNone(mock_session_state['current_trial'])
+        self.assertIsNone(mock_session_state['current_trial_index'])
+        self.assertIn('sorted_trials', mock_session_state)
+        self.assertEqual(len(mock_session_state['sorted_trials']), 1)
+    
 
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

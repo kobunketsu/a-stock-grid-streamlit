@@ -96,72 +96,124 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
         results: Dictionary containing optimization results
         top_n: Number of top results to display
     """
-    if not results:
-        return
-        
-    st.header(_("optimization_results"))
+    print("[DEBUG] Entering display_optimization_results")
     
-    # 获取前N个结果并过滤掉收益率<=0的结果
-    valid_trials = [trial for trial in results["sorted_trials"] if -trial.value > 0]
-    sorted_trials = sorted(valid_trials, key=lambda t: t.value)[:top_n]
+    # 获取全局列对象
+    results_col = st.session_state.get('results_col')
+    details_col = st.session_state.get('details_col')
     
-    if not sorted_trials:
-        st.write(_("no_parameter_combinations_with_profit_greater_than_0_found"))
+    if results_col is None or details_col is None:
+        print("[DEBUG] Layout columns not found in session state")
         return
     
-    # 参数名称映射，与tk版保持一致
-    param_names = {
-        'up_sell_rate': _('up_sell'),
-        'up_callback_rate': _('up_callback'),            
-        'down_buy_rate': _('down_buy'),
-        'down_rebound_rate': _('down_rebound'),
-        'shares_per_trade': _('shares_per_trade')
-    }
+    # 如果是新的优化结果，则更新session state
+    if results is not None:
+        print("[DEBUG] Storing new optimization results in session state")
+        st.session_state['optimization_results'] = results
+        st.session_state['sorted_trials'] = sorted(results["sorted_trials"], key=lambda t: t.value)
+        # 只在第一次显示结果时初始化状态
+        if 'show_details' not in st.session_state:
+            st.session_state['show_details'] = False
+            st.session_state['current_trial'] = None
+            st.session_state['current_trial_index'] = None
+    elif 'optimization_results' not in st.session_state:
+        print("[DEBUG] No results to display")
+        return
     
-    # 显示所有参数组合
-    for i, trial in enumerate(sorted_trials, 1):
-        profit_rate = -trial.value
-        st.subheader(_("parameter_combination_format").format(i, profit_rate))
+    # 在结果列中显示优化结果
+    with results_col:
+        st.header(_("optimization_results"))
+        print("[DEBUG] Filtering valid trials")
+        # 获取前N个结果并过滤掉收益率<=0的结果
+        valid_trials = [trial for trial in st.session_state['sorted_trials'] if -trial.value > 0]
+        sorted_trials = valid_trials[:top_n]
         
-        # 按照param_names的顺序显示参数
-        for key in param_names.keys():
-            value = trial.params[key]
-            if key == 'shares_per_trade':
-                st.write(f"- {param_names[key]}: {value:,}")
-            else:
-                st.write(f"- {param_names[key]}: {value*100:.2f}%")
+        print(f"[DEBUG] Found {len(valid_trials)} valid trials")
+        print(f"[DEBUG] Displaying top {len(sorted_trials)} trials")
         
-        st.write(f"{_('trade_count')}: {trial.user_attrs['trade_count']}")
+        if not sorted_trials:
+            print("[DEBUG] No valid trials found")
+            st.write(_("no_parameter_combinations_with_profit_greater_than_0_found"))
+            return
         
-        # 显示失败交易统计
-        st.write(_("failed_trade_statistics"))
-        failed_trades = eval(trial.user_attrs["failed_trades"])
-        for reason, count in failed_trades.items():
-            if count > 0:
-                st.write(f"- {_(reason)}: {count} {_('times')}")
+        # 参数名称映射，与tk版保持一致
+        param_names = {
+            'up_sell_rate': _('up_sell'),
+            'up_callback_rate': _('up_callback'),            
+            'down_buy_rate': _('down_buy'),
+            'down_rebound_rate': _('down_rebound'),
+            'shares_per_trade': _('shares_per_trade')
+        }
         
-        # 显示分段结果（如果有）
-        if "segment_results" in trial.user_attrs:
-            st.write(_("segment_results"))
-            segment_results = eval(trial.user_attrs["segment_results"])
-            for j, result in enumerate(segment_results, 1):
-                st.write(f"\n{_('segment')} {j}:")
-                st.write(f"- {_('period')}: {result['start_date']} {_('to')} {result['end_date']}")
-                st.write(f"- {_('profit_rate')}: {result['profit_rate']:.2f}%")
-                st.write(f"- {_('trade_count')}: {result['trades']}")
-                if result['failed_trades']:
-                    st.write(_("failed_trade_statistics"))
-                    for reason, count in result['failed_trades'].items():
-                        if count > 0:
-                            st.write(f"  - {_(reason)}: {count} {_('times')}")
-        
-        # 添加查看详细交易记录的按钮
-        if st.button(_("view_details"), key=f"details_{i}"):
-            display_trade_details(trial)
+        # 显示所有参数组合
+        for i, trial in enumerate(sorted_trials, 1):
+            profit_rate = -trial.value
+            print(f"[DEBUG] Displaying trial {i} with profit rate {profit_rate}")
             
-        # 添加分隔线
-        if i < len(sorted_trials):
-            st.markdown("---")
+            # 使用 expander 来组织每个组合的显示
+            with st.expander(_("parameter_combination_format").format(i, profit_rate), expanded=True):
+                # 按照param_names的顺序显示参数
+                for key in param_names.keys():
+                    value = trial.params[key]
+                    if key == 'shares_per_trade':
+                        st.write(f"- {param_names[key]}: {value:,}")
+                    else:
+                        st.write(f"- {param_names[key]}: {value*100:.2f}%")
+                
+                st.write(f"{_('trade_count')}: {trial.user_attrs['trade_count']}")
+                
+                # 显示失败交易统计
+                failed_trades = eval(trial.user_attrs["failed_trades"])
+                if any(count > 0 for count in failed_trades.values()):
+                    st.write(_("failed_trade_statistics"))
+                    for reason, count in failed_trades.items():
+                        if count > 0:
+                            st.write(f"- {_(reason)}: {count} {_('times')}")
+                
+                # 显示分段结果（如果有）
+                if "segment_results" in trial.user_attrs:
+                    st.write(_("segment_results"))
+                    segment_results = eval(trial.user_attrs["segment_results"])
+                    for j, result in enumerate(segment_results, 1):
+                        st.write(f"\n{_('segment')} {j}:")
+                        st.write(f"- {_('period')}: {result['start_date']} {_('to')} {result['end_date']}")
+                        st.write(f"- {_('profit_rate')}: {result['profit_rate']:.2f}%")
+                        st.write(f"- {_('trade_count')}: {result['trades']}")
+                        if result['failed_trades']:
+                            st.write(_("failed_trade_statistics"))
+                            for reason, count in result['failed_trades'].items():
+                                if count > 0:
+                                    st.write(f"  - {_(reason)}: {count} {_('times')}")
+                
+                # 添加查看详细交易记录的按钮
+                button_key = f"details_{i}_{id(trial)}"  # 使用trial对象的id确保key的唯一性
+                print(f"[DEBUG] Creating view details button with key: {button_key}")
+                if st.button(_("view_details"), key=button_key):
+                    print(f"[DEBUG] View details button {i} clicked")
+                    st.session_state['show_details'] = True
+                    st.session_state['current_trial'] = trial
+                    st.session_state['current_trial_index'] = i - 1
+                    st.experimental_rerun()
+    
+    # 在详情列中显示交易详情
+    with details_col:
+        print("[DEBUG] Checking conditions for displaying details")
+        print(f"[DEBUG] show_details={st.session_state.get('show_details')}")
+        print(f"[DEBUG] current_trial exists={st.session_state.get('current_trial') is not None}")
+        
+        if st.session_state.get('show_details', False) and st.session_state.get('current_trial') is not None:
+            close_button_key = "close_details_" + str(id(st.session_state['current_trial']))  # 使用唯一的key
+            if st.button(_("close_details"), key=close_button_key):
+                st.session_state['show_details'] = False
+                st.session_state['current_trial'] = None
+                st.session_state['current_trial_index'] = None
+                st.experimental_rerun()
+            else:
+                print(f"[DEBUG] Displaying details for trial")
+                display_trade_details(st.session_state['current_trial'])
+        else:
+            print("[DEBUG] No trial selected for details")
+            st.write(_("click_view_details_to_see_trade_details"))
 
 def display_trade_details(trial: Any) -> None:
     """
@@ -170,7 +222,11 @@ def display_trade_details(trial: Any) -> None:
     Args:
         trial: Trial object containing trading details
     """
+    print("[DEBUG] Entering display_trade_details")
+    print(f"[DEBUG] Trial object exists: {trial is not None}")
+    
     if not trial:
+        print("[DEBUG] No trial object provided")
         return
         
     st.subheader(_("trade_details"))
@@ -178,6 +234,7 @@ def display_trade_details(trial: Any) -> None:
     # 获取参数和收益率
     params = trial.params
     profit_rate = -trial.value
+    print(f"[DEBUG] Displaying details for trial with profit rate: {profit_rate}")
     
     # 显示参数组合信息
     st.write(_("parameter_combination_details"))
@@ -200,11 +257,13 @@ def display_trade_details(trial: Any) -> None:
         else:
             st.write(f"{param_names[key]}: {value*100:.2f}%")
     
+    print("[DEBUG] Displaying trade statistics")
     # 显示交易统计信息
     st.write(f"{_('trade_count')}: {trial.user_attrs.get('trade_count', 'N/A')}")
     
-    # 显示分段回测结果（如果有）
+    # ��示分段回测结果（如果有）
     if 'segment_results' in trial.user_attrs:
+        print("[DEBUG] Displaying segment results")
         st.write("=== " + _("segmented_backtest_details") + " ===")
         segment_results = eval(trial.user_attrs["segment_results"])
         for i, segment in enumerate(segment_results, 1):
@@ -222,6 +281,7 @@ def display_trade_details(trial: Any) -> None:
     
     # 显示交易记录（如果有）
     if 'trade_records' in trial.user_attrs:
+        print("[DEBUG] Displaying trade records")
         st.write("\n=== " + _("trade_records") + " ===")
         trade_records = eval(trial.user_attrs["trade_records"])
         for record in trade_records:
@@ -291,7 +351,7 @@ def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
     更新证券信息，返回证券名称和价格区间
     """
     try:
-        # 获取证券信息
+        # 获证券信息
         name, security_type = get_symbol_info(symbol)
         if name is None:
             st.error(_("symbol_not_found"))
@@ -475,7 +535,7 @@ def start_optimization(
                     -study.best_value if study.best_value is not None else 0
                 ))
         
-        # 执行优化
+        # 运行优化
         study = optuna.create_study(direction="minimize")
         study.optimize(optimizer.objective, n_trials=n_trials, callbacks=[progress_callback])
         
@@ -499,7 +559,7 @@ def start_optimization(
 
 def update_segment_days(min_buy_times: int) -> str:
     """
-    更新分段天数显示
+    更新分段天数示
     """
     try:
         from segment_utils import get_segment_days
@@ -524,8 +584,11 @@ def main():
     # Load configuration
     config = load_config()
     
-    # Create three columns for the layout
-    params_col, results_col, details_col = st.columns([1, 2, 1])
+    # Create three columns for the layout and store them in session state
+    params_col, results_col, details_col = st.columns([1, 2, 2])
+    st.session_state['params_col'] = params_col
+    st.session_state['results_col'] = results_col
+    st.session_state['details_col'] = details_col
     
     # Left column - Parameters
     with params_col:
@@ -654,14 +717,18 @@ def main():
             )
             
             if results:
-                # Display optimization results in the middle column
-                with results_col:
-                    display_optimization_results(results, top_n)
-                
-                # Display trade details in the right column
-                with details_col:
-                    if results["sorted_trials"]:
-                        display_trade_details(results["sorted_trials"][0])
+                # Display optimization results
+                st.session_state['new_results'] = True
+                st.session_state['optimization_results'] = results
+                st.experimental_rerun()
+    
+    # 如果session state中有优化结果，显示结果
+    if 'optimization_results' in st.session_state:
+        if st.session_state.get('new_results', False):
+            display_optimization_results(st.session_state['optimization_results'], top_n)
+            st.session_state['new_results'] = False
+        else:
+            display_optimization_results(None, top_n)
 
 if __name__ == "__main__":
     main() 
