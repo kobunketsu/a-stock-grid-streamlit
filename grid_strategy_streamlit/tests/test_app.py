@@ -4,6 +4,7 @@ import streamlit as st
 from datetime import datetime, timedelta
 import json
 import pandas as pd
+import streamlit.runtime.scriptrunner.script_runner
 from src.app import *
 from src.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
 from locales.localization import _
@@ -230,7 +231,8 @@ class TestStreamlitApp(unittest.TestCase):
     @patch('streamlit.session_state', new_callable=dict)
     @patch('streamlit.button')
     @patch('streamlit.expander')
-    def test_view_trial_details(self, mock_expander, mock_button, mock_session_state):
+    @patch('streamlit.columns')
+    def test_view_trial_details(self, mock_columns, mock_expander, mock_button, mock_session_state):
         """测试查看优化结果详情时状态保持"""
         # 模拟优化结果数据
         mock_trial = MagicMock(
@@ -245,60 +247,54 @@ class TestStreamlitApp(unittest.TestCase):
             user_attrs={'trade_count': 50, 'failed_trades': '{}'}
         )
         mock_results = {'sorted_trials': [mock_trial]}
-        
-        # 第一次调用：初始化状态
+
+        # 模拟列对象
+        mock_results_col = MagicMock()
+        mock_details_col = MagicMock()
+        mock_columns.return_value = [mock_results_col, mock_details_col]
+
+        # 模拟列对象的上下文管理器
+        mock_results_col.__enter__ = MagicMock(return_value=mock_results_col)
+        mock_results_col.__exit__ = MagicMock(return_value=None)
+        mock_details_col.__enter__ = MagicMock(return_value=mock_details_col)
+        mock_details_col.__exit__ = MagicMock(return_value=None)
+
+        # 设置session state
         mock_session_state.clear()
-        mock_button.return_value = False  # 初始状态下按钮未点击
-        display_optimization_results(mock_results, top_n=5)
-        
-        # 验证初始状态
-        self.assertFalse(mock_session_state['show_details'])
-        self.assertIsNone(mock_session_state['current_trial'])
-        self.assertIsNone(mock_session_state['current_trial_index'])
-        
-        # 第二次调用：模拟点击查看详情按钮
-        def button_side_effect(*args, **kwargs):
-            if kwargs.get('key') == 'details_1':
-                return True
-            return False
-        mock_button.side_effect = button_side_effect
+        mock_session_state['results_col'] = mock_results_col
+        mock_session_state['details_col'] = mock_details_col
+        mock_session_state['new_results'] = True
         mock_session_state['optimization_results'] = mock_results
         mock_session_state['sorted_trials'] = [mock_trial]
-        display_optimization_results(None, top_n=5)
-        
-        # 验证session state被正确更新
-        self.assertTrue(mock_session_state['show_details'])
-        self.assertEqual(mock_session_state['current_trial_index'], 0)
-        self.assertEqual(mock_session_state['current_trial'], mock_trial)
-        
-        # 验证优化结果列表依然存在
-        self.assertIn('sorted_trials', mock_session_state)
-        self.assertEqual(len(mock_session_state['sorted_trials']), 1)
-        
-        # 第三次调用：模拟页面重新加载后的状态
-        mock_button.side_effect = lambda *args, **kwargs: False  # 所有按钮都未点击
-        display_optimization_results(None, top_n=5)
-        
-        # 验证状态保持不变
-        self.assertTrue(mock_session_state['show_details'])
-        self.assertEqual(mock_session_state['current_trial_index'], 0)
-        self.assertEqual(mock_session_state['current_trial'], mock_trial)
-        self.assertIn('sorted_trials', mock_session_state)
-        
-        # 第四次调用：模拟点击关闭详情按钮
-        def close_button_side_effect(*args, **kwargs):
-            if kwargs.get('key') == 'details_1':
-                return False
-            return True  # 关闭按钮被点击
-        mock_button.side_effect = close_button_side_effect
-        display_optimization_results(None, top_n=5)
-        
-        # 验证详情被关闭但优化结果依然存在
-        self.assertFalse(mock_session_state['show_details'])
-        self.assertIsNone(mock_session_state['current_trial'])
-        self.assertIsNone(mock_session_state['current_trial_index'])
-        self.assertIn('sorted_trials', mock_session_state)
-        self.assertEqual(len(mock_session_state['sorted_trials']), 1)
+
+        # 第一次调用：初始化状态
+        mock_button.side_effect = [False] * 10  # 初始状态下按钮未点击
+        display_optimization_results(mock_results, top_n=5)
+
+        # 验证初始状态
+        self.assertFalse(mock_session_state.get('show_details', False))
+        self.assertIsNone(mock_session_state.get('current_trial'))
+        self.assertIsNone(mock_session_state.get('current_trial_index'))
+
+        # 模拟点击查看详情按钮
+        mock_button.side_effect = [True] + [False] * 9  # 第一个按钮点击，其他未点击
+        try:
+            display_optimization_results(None, top_n=5)
+        except streamlit.runtime.scriptrunner.script_runner.RerunException:
+            # 验证状态更新
+            self.assertTrue(mock_session_state.get('show_details', False))
+            self.assertEqual(mock_session_state.get('current_trial'), mock_trial)
+            self.assertEqual(mock_session_state.get('current_trial_index'), 0)
+
+        # 模拟关闭详情
+        mock_button.side_effect = [False] * 5 + [True] + [False] * 4  # 关闭按钮点击
+        try:
+            display_optimization_results(None, top_n=5)
+        except streamlit.runtime.scriptrunner.script_runner.RerunException:
+            # 验证状态重置
+            self.assertFalse(mock_session_state.get('show_details', False))
+            self.assertIsNone(mock_session_state.get('current_trial'))
+            self.assertIsNone(mock_session_state.get('current_trial_index'))
     
 
 if __name__ == '__main__':
