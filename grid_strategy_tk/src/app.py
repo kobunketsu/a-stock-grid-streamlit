@@ -222,7 +222,7 @@ class ProgressWindow:
         n_trials_entry = ttk.Entry(parent, textvariable=self.n_trials_var, width=12)
         n_trials_entry.grid(row=10, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text=_("show_top_n_results")).grid(row=11, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=_("display_top_n_results")).grid(row=11, column=0, sticky=tk.W, pady=2)
         top_n_entry = ttk.Entry(parent, textvariable=self.top_n_var, width=12)
         top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
@@ -486,7 +486,7 @@ class ProgressWindow:
         """捕获并存储输出文本"""
         self.captured_output.append(text)
     
-    def show_trade_details(self, trial):
+    def display_trade_details(self, trial):
         """显示特定参数组合的策略详情"""
         # 清空现有内容
         self.trade_details.config(state='normal')
@@ -729,7 +729,7 @@ class ProgressWindow:
             self.trade_details.mark_set(tk.INSERT, '1.0')
             return 'break'  # 阻止事件继续传播
     
-    def show_strategy_details(self, strategy_params):
+    def display_strategy_details(self, strategy_params):
         """显示特定参数组合的策略详情"""
         # 清空现有内容
         self.trade_details.config(state='normal')
@@ -905,7 +905,7 @@ class ProgressWindow:
             # 添加查看详情按钮
             # 添加查看按钮
             detailbutton = ttk.Button(result_frame, text=_("view_details"), 
-                      command=lambda p=trial.params: self.show_strategy_details(p)).pack(
+                      command=lambda p=trial.params: self.display_strategy_details(p)).pack(
                           side=tk.RIGHT, padx=5)
 
         

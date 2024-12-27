@@ -112,8 +112,8 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
         st.session_state['optimization_results'] = results
         st.session_state['sorted_trials'] = sorted(results["sorted_trials"], key=lambda t: t.value)
         # 只在第一次显示结果时初始化状态
-        if 'show_details' not in st.session_state:
-            st.session_state['show_details'] = False
+        if 'display_details' not in st.session_state:
+            st.session_state['display_details'] = False
             st.session_state['current_trial'] = None
             st.session_state['current_trial_index'] = None
     elif 'optimization_results' not in st.session_state:
@@ -190,7 +190,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
                 print(f"[DEBUG] Creating view details button with key: {button_key}")
                 if st.button(_("view_details"), key=button_key):
                     print(f"[DEBUG] View details button {i} clicked")
-                    st.session_state['show_details'] = True
+                    st.session_state['display_details'] = True
                     st.session_state['current_trial'] = trial
                     st.session_state['current_trial_index'] = i - 1
                     st.experimental_rerun()
@@ -198,13 +198,13 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
     # 在详情列中显示交易详情
     with details_col:
         print("[DEBUG] Checking conditions for displaying details")
-        print(f"[DEBUG] show_details={st.session_state.get('show_details')}")
+        print(f"[DEBUG] display_details={st.session_state.get('display_details')}")
         print(f"[DEBUG] current_trial exists={st.session_state.get('current_trial') is not None}")
         
-        if st.session_state.get('show_details', False) and st.session_state.get('current_trial') is not None:
+        if st.session_state.get('display_details', False) and st.session_state.get('current_trial') is not None:
             close_button_key = "close_details_" + str(id(st.session_state['current_trial']))  # 使用唯一的key
             if st.button(_("close_details"), key=close_button_key):
-                st.session_state['show_details'] = False
+                st.session_state['display_details'] = False
                 st.session_state['current_trial'] = None
                 st.session_state['current_trial_index'] = None
                 st.experimental_rerun()
@@ -632,7 +632,7 @@ def main():
             format="%.3f"
         )
         n_trials = st.number_input(_("optimization_trials"), value=config.get("n_trials", 100), min_value=1)
-        top_n = st.number_input(_("show_top_n_results"), value=config.get("top_n", 5), min_value=1)
+        top_n = st.number_input(_("display_top_n_results"), value=config.get("top_n", 5), min_value=1)
         
         # Segment settings
         enable_segments = st.checkbox(_("segmented_backtest"), value=config.get("enable_segments", False))

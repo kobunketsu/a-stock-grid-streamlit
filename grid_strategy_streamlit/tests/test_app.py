@@ -272,7 +272,7 @@ class TestStreamlitApp(unittest.TestCase):
         display_optimization_results(mock_results, top_n=5)
 
         # 验证初始状态
-        self.assertFalse(mock_session_state.get('show_details', False))
+        self.assertFalse(mock_session_state.get('display_details', False))
         self.assertIsNone(mock_session_state.get('current_trial'))
         self.assertIsNone(mock_session_state.get('current_trial_index'))
 
@@ -282,7 +282,7 @@ class TestStreamlitApp(unittest.TestCase):
             display_optimization_results(None, top_n=5)
         except streamlit.runtime.scriptrunner.script_runner.RerunException:
             # 验证状态更新
-            self.assertTrue(mock_session_state.get('show_details', False))
+            self.assertTrue(mock_session_state.get('display_details', False))
             self.assertEqual(mock_session_state.get('current_trial'), mock_trial)
             self.assertEqual(mock_session_state.get('current_trial_index'), 0)
 
@@ -292,7 +292,7 @@ class TestStreamlitApp(unittest.TestCase):
             display_optimization_results(None, top_n=5)
         except streamlit.runtime.scriptrunner.script_runner.RerunException:
             # 验证状态重置
-            self.assertFalse(mock_session_state.get('show_details', False))
+            self.assertFalse(mock_session_state.get('display_details', False))
             self.assertIsNone(mock_session_state.get('current_trial'))
             self.assertIsNone(mock_session_state.get('current_trial_index'))
     

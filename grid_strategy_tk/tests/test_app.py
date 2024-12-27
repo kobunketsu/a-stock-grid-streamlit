@@ -427,7 +427,7 @@ class TestProgressWindow(unittest.TestCase):
                 }
         
         # 显示交易详情
-        self.progress_window.show_trade_details(MockTrial())
+        self.progress_window.display_trade_details(MockTrial())
         
         # 验证调用
         self.mock_text.config.assert_called()

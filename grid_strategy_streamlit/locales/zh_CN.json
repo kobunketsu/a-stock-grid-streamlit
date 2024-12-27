@@ -25,7 +25,7 @@
     "min_value": "最小值",
     "max_value": "最大值",
     "optimization_trials": "优化次数",
-    "show_top_n_results": "显示前N个结果",
+    "display_top_n_results": "显示前N个结果",
     
     "segmented_backtest_settings": "分段回测设置",
     "segmented_backtest": "分段回测",
