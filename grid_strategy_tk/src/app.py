@@ -488,61 +488,25 @@ class ProgressWindow:
     
     def display_trade_details(self, trial):
         """显示特定参数组合的策略详情"""
-        # 清��现有内容
+        # 清空现有内容
         self.trade_details.config(state='normal')
         self.trade_details.delete('1.0', tk.END)
         
-        # 获取数和收益
-        params = trial.params
-        profit_rate = -trial.value
+        # 创建策略实例
+        from grid_strategy import GridStrategy
+        strategy = GridStrategy(
+            symbol=self.symbol_var.get().strip(),
+            symbol_name=self.symbol_name_var.get().strip()
+        )
         
-        # 显示参数组合信息
-        self.trade_details.insert(tk.END, _("parameter_combination_details") + "\n")
-        self.trade_details.insert(tk.END, f"{_('total_profit_rate')}: {profit_rate:.2f}%\n\n")
+        # 使用format_trial_details方法获取显示内容
+        output_lines = strategy.format_trial_details(trial)
         
-        # 参数名称映射
-        param_names = {
-            'up_sell_rate': _('up_sell'),
-            'up_callback_rate': _('up_callback'),            
-            'down_buy_rate': _('down_buy'),
-            'down_rebound_rate': _('down_rebound'),
-            'shares_per_trade': _('shares_per_trade')
-        }
+        # 显示内容
+        for line in output_lines:
+            self.trade_details.insert(tk.END, line + "\n")
         
-        # 显示参数详情
-        self.trade_details.insert(tk.END, _("parameter_details") + ":\n")
-        for key, value in params.items():
-            if key == 'shares_per_trade':
-                self.trade_details.insert(tk.END, f"{param_names[key]}: {value:,}\n")
-            else:
-                self.trade_details.insert(tk.END, f"{param_names[key]}: {value*100:.2f}%\n")
-        
-        # 显示交易统计信息
-        self.trade_details.insert(tk.END, f"\n{_('trade_count')}: {trial.user_attrs.get('trade_count', 'N/A')}\n")
-        
-        # 显示分段回测结果（如果有）
-        if 'segment_results' in trial.user_attrs:
-            self.trade_details.insert(tk.END, "\n=== " + _("segmented_backtest_details") + " ===\n")
-            for i, segment in enumerate(trial.user_attrs['segment_results'], 1):
-                self.trade_details.insert(tk.END, f"\n{_('segment')} {i}:\n")
-                self.trade_details.insert(tk.END, f"{_('time_period')}: {segment['start_date']} - {segment['end_date']}\n")
-                self.trade_details.insert(tk.END, f"{_('profit_rate')}: {segment['profit_rate']:.2f}%\n")
-                self.trade_details.insert(tk.END, f"{_('trade_count')}: {segment['trades']}\n")
-                
-                # 显示失败交易统计（如果有）
-                if segment.get('failed_trades'):
-                    self.trade_details.insert(tk.END, "\n" + _("failed_trade_statistics") + ":\n")
-                    for reason, count in segment['failed_trades'].items():
-                        if count > 0:
-                            self.trade_details.insert(tk.END, f"  {reason}: {count} {_('times')}\n")
-        
-        # 显示交易记录（如果有）
-        if 'trade_records' in trial.user_attrs:
-            self.trade_details.insert(tk.END, "\n=== " + _("trade_records") + " ===\n")
-            for record in trial.user_attrs['trade_records']:
-                self.trade_details.insert(tk.END, f"{record}\n")
-        
-        # 恢复只读状态并滚动到顶部
+        # 设置为只读并滚动到顶部
         self.trade_details.config(state='disabled')
         self.trade_details.see('1.0')
     
@@ -719,7 +683,7 @@ class ProgressWindow:
             self.trade_details.see(tk.END)
             # 将插入点移动到最后
             self.trade_details.mark_set(tk.INSERT, tk.END)
-            return 'break'  # 阻止事件继续��播
+            return 'break'  # 阻止事件继续传播
     
     def scroll_to_start(self, event=None):
         """滚动到文本开始"""
