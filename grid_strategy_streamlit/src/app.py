@@ -240,8 +240,8 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
         st.session_state['saved_config'] = {
             'symbol': st.session_state.get('symbol_input', ''),  # 从输入字段获取
             'symbol_name': st.session_state.get('symbol_name', ''),
-            'start_date': st.session_state.get('start_date'),
-            'end_date': st.session_state.get('end_date'),
+            'start_date': st.session_state.get('start_date', datetime.strptime('2024-10-10', '%Y-%m-%d')),
+            'end_date': st.session_state.get('end_date', datetime.strptime('2024-12-20', '%Y-%m-%d')),
             'initial_cash': st.session_state.get('initial_cash', 100000),
             'initial_positions': st.session_state.get('initial_positions', 0),
             'price_range_min': st.session_state.get('price_range_min', 3.9),
@@ -448,7 +448,7 @@ def validate_symbol(symbol: str) -> bool:
 
 def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
     """
-    更新证券信息，返回证券名称和价格区间
+    更新证券信息��返回证券名称和价格区间
     """
     try:
         # 获证券信息
@@ -544,7 +544,7 @@ def optimize_strategy(optimizer, config):
         config: 配置参数字典
     
     Returns:
-        dict: 优化结果，包含最佳参数和收益率等信息
+        dict: 优化结果，���含最佳参数和收益率等信息
     """
     try:
         # 运行优化
@@ -673,162 +673,205 @@ def main():
     """
     Main function for the Streamlit app
     """
-    st.set_page_config(
-        page_title=_("app_title"),
-        page_icon="📈",
-        layout="wide"
-    )
-    
-    st.title(_("app_title"))
-    
-    # Load configuration
-    config = load_config()
-    
-    # Create three columns for the layout and store them in session state
-    params_col, results_col, details_col = st.columns([1, 2, 2])
-    st.session_state['params_col'] = params_col
-    st.session_state['results_col'] = results_col
-    st.session_state['details_col'] = details_col
-    
-    # Left column - Parameters
-    with params_col:
-        # Basic parameters
-        symbol = st.text_input(_("symbol_code"), value=config.get("symbol", "159300"), key="symbol_input")
-        
-        # 证券代码改变时更新信息
-        if symbol != config.get("symbol", ""):
-            if validate_symbol(symbol):
-                name, price_range = update_symbol_info(symbol)
-                if name:
-                    st.session_state.symbol_name = name
-                    if price_range:
-                        st.session_state.price_range_min = price_range[0]
-                        st.session_state.price_range_max = price_range[1]
-        
-        symbol_name = st.text_input(_("symbol_name"), 
-                                  value=st.session_state.get("symbol_name", config.get("symbol_name", "")),
-                                  disabled=True)
-        start_date = st.date_input(_("start_date"), 
-                                 value=datetime.strptime(config.get("start_date", "2024-10-10"), "%Y-%m-%d"))
-        end_date = st.date_input(_("end_date"), 
-                               value=datetime.strptime(config.get("end_date", "2024-12-20"), "%Y-%m-%d"))
-        
-        # Strategy parameters
-        ma_period = st.number_input(_("ma_period"), value=config.get("ma_period", 55), min_value=1)
-        ma_protection = st.checkbox(_("ma_protection"), value=config.get("ma_protection", True))
-        initial_positions = st.number_input(_("initial_positions"), value=config.get("initial_positions", 0), min_value=0)
-        initial_cash = st.number_input(_("initial_cash"), value=config.get("initial_cash", 100000), min_value=0)
-        min_buy_times = st.number_input(_("min_buy_times"), value=config.get("min_buy_times", 2), min_value=1)
-        
-        # Price range parameters
-        price_range_min = st.number_input(
-            _("min_value"),
-            value=st.session_state.get("price_range_min", config.get("price_range_min", 3.9)),
-            format="%.3f"
+    try:
+        print("[DEBUG] Starting main function")
+        st.set_page_config(
+            page_title=_("app_title"),
+            page_icon="📈",
+            layout="wide"
         )
-        price_range_max = st.number_input(
-            _("max_value"),
-            value=st.session_state.get("price_range_max", config.get("price_range_max", 4.3)),
-            format="%.3f"
-        )
-        n_trials = st.number_input(_("optimization_trials"), value=config.get("n_trials", 100), min_value=1)
-        top_n = st.number_input(_("display_top_n_results"), value=config.get("top_n", 5), min_value=1)
         
-        # Segment settings
-        enable_segments = st.checkbox(_("segmented_backtest"), value=config.get("enable_segments", False))
-        if enable_segments:
-            profit_calc_method = st.selectbox(
-                _("calculation_method"),
-                options=["mean", "median"],
-                index=0 if config.get("profit_calc_method", "mean") == "mean" else 1
-            )
-            connect_segments = st.checkbox(_("connect_segments"), value=config.get("connect_segments", False))
-            
-            # 显示每段天数
-            segment_days = update_segment_days(min_buy_times)
-            if segment_days:
-                st.text(segment_days)
-        else:
-            profit_calc_method = "mean"
-            connect_segments = False
-            
-        # Add start button at the bottom of parameters
-        if st.button(_("start_optimization")):
-            # Validate all inputs
-            if not validate_all_inputs(
-                symbol=symbol,
-                start_date=start_date,
-                end_date=end_date,
-                ma_period=ma_period,
-                initial_positions=initial_positions,
-                initial_cash=initial_cash,
-                min_buy_times=min_buy_times,
-                price_range_min=price_range_min,
-                price_range_max=price_range_max,
-                n_trials=n_trials,
-                top_n=top_n
-            ):
-                return
-            
-            # Save configuration
-            save_config({
-                "symbol": symbol,
-                "symbol_name": symbol_name,
-                "start_date": start_date.strftime("%Y-%m-%d"),
-                "end_date": end_date.strftime("%Y-%m-%d"),
-                "ma_period": ma_period,
-                "ma_protection": ma_protection,
-                "initial_positions": initial_positions,
-                "initial_cash": initial_cash,
-                "min_buy_times": min_buy_times,
-                "price_range_min": price_range_min,
-                "price_range_max": price_range_max,
-                "n_trials": n_trials,
-                "top_n": top_n,
-                "enable_segments": enable_segments,
-                "profit_calc_method": profit_calc_method,
-                "connect_segments": connect_segments
-            })
-            
-            # 创建进度条和状态文本容器
-            with results_col:
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-            
-            # Start optimization
-            results = start_optimization(
-                symbol=symbol,
-                symbol_name=symbol_name,
-                start_date=start_date,
-                end_date=end_date,
-                ma_period=ma_period,
-                ma_protection=ma_protection,
-                initial_positions=initial_positions,
-                initial_cash=initial_cash,
-                min_buy_times=min_buy_times,
-                price_range_min=price_range_min,
-                price_range_max=price_range_max,
-                n_trials=n_trials,
-                top_n=top_n,
-                profit_calc_method=profit_calc_method,
-                connect_segments=connect_segments,
-                progress_bar=progress_bar,
-                status_text=status_text
-            )
-            
-            if results:
-                # Display optimization results
-                st.session_state['new_results'] = True
-                st.session_state['optimization_results'] = results
-                st.experimental_rerun()
-    
-    # 如果session state中有优化结果，显示结果
-    if 'optimization_results' in st.session_state:
-        if st.session_state.get('new_results', False):
-            display_optimization_results(st.session_state['optimization_results'], top_n)
-            st.session_state['new_results'] = False
-        else:
-            display_optimization_results(None, top_n)
+        st.title(_("app_title"))
+        
+        # Load configuration
+        print("[DEBUG] Loading configuration")
+        config = load_config()
+        
+        # Create three columns for the layout and store them in session state
+        params_col, results_col, details_col = st.columns([1, 2, 2])
+        st.session_state['params_col'] = params_col
+        st.session_state['results_col'] = results_col
+        st.session_state['details_col'] = details_col
+        
+        print("[DEBUG] Starting parameter input section")
+        # Left column - Parameters
+        with params_col:
+            try:
+                # Basic parameters
+                symbol = st.text_input(_("symbol_code"), value=config.get("symbol", "159300"), key="symbol_input")
+                
+                # 证券代码改变时更新信息
+                if symbol != config.get("symbol", ""):
+                    print(f"[DEBUG] Symbol changed to: {symbol}")
+                    if validate_symbol(symbol):
+                        name, price_range = update_symbol_info(symbol)
+                        if name:
+                            st.session_state.symbol_name = name
+                            if price_range:
+                                st.session_state.price_range_min = price_range[0]
+                                st.session_state.price_range_max = price_range[1]
+                
+                symbol_name = st.text_input(_("symbol_name"), 
+                                          value=st.session_state.get("symbol_name", config.get("symbol_name", "")),
+                                          disabled=True)
+                start_date = st.date_input(_("start_date"), 
+                                         value=datetime.strptime(config.get("start_date", "2024-10-10"), "%Y-%m-%d"))
+                end_date = st.date_input(_("end_date"), 
+                                       value=datetime.strptime(config.get("end_date", "2024-12-20"), "%Y-%m-%d"))
+                
+                # Strategy parameters
+                ma_period = st.number_input(_("ma_period"), value=config.get("ma_period", 55), min_value=1)
+                ma_protection = st.checkbox(_("ma_protection"), value=config.get("ma_protection", True))
+                initial_positions = st.number_input(_("initial_positions"), value=config.get("initial_positions", 0), min_value=0)
+                initial_cash = st.number_input(_("initial_cash"), value=config.get("initial_cash", 100000), min_value=0)
+                min_buy_times = st.number_input(_("min_buy_times"), value=config.get("min_buy_times", 2), min_value=1)
+                
+                # Price range parameters
+                price_range_min = st.number_input(
+                    _("min_value"),
+                    value=st.session_state.get("price_range_min", config.get("price_range_min", 3.9)),
+                    format="%.3f"
+                )
+                price_range_max = st.number_input(
+                    _("max_value"),
+                    value=st.session_state.get("price_range_max", config.get("price_range_max", 4.3)),
+                    format="%.3f"
+                )
+                n_trials = st.number_input(_("optimization_trials"), value=config.get("n_trials", 100), min_value=1)
+                top_n = st.number_input(_("display_top_n_results"), value=config.get("top_n", 5), min_value=1)
+                
+                # Segment settings
+                enable_segments = st.checkbox(_("segmented_backtest"), value=config.get("enable_segments", False))
+                if enable_segments:
+                    profit_calc_method = st.selectbox(
+                        _("calculation_method"),
+                        options=["mean", "median"],
+                        index=0 if config.get("profit_calc_method", "mean") == "mean" else 1
+                    )
+                    connect_segments = st.checkbox(_("connect_segments"), value=config.get("connect_segments", False))
+                    
+                    # 显示每段天数
+                    segment_days = update_segment_days(min_buy_times)
+                    if segment_days:
+                        st.text(segment_days)
+                else:
+                    profit_calc_method = "mean"
+                    connect_segments = False
+                    
+                print("[DEBUG] Starting optimization button section")
+                # Add start button at the bottom of parameters
+                if st.button(_("start_optimization")):
+                    print("[DEBUG] Optimization button clicked")
+                    # Validate all inputs
+                    if not validate_all_inputs(
+                        symbol=symbol,
+                        start_date=start_date,
+                        end_date=end_date,
+                        ma_period=ma_period,
+                        initial_positions=initial_positions,
+                        initial_cash=initial_cash,
+                        min_buy_times=min_buy_times,
+                        price_range_min=price_range_min,
+                        price_range_max=price_range_max,
+                        n_trials=n_trials,
+                        top_n=top_n
+                    ):
+                        return
+                    
+                    print("[DEBUG] Saving configuration")
+                    # Save configuration
+                    save_config({
+                        "symbol": symbol,
+                        "symbol_name": symbol_name,
+                        "start_date": start_date.strftime("%Y-%m-%d"),
+                        "end_date": end_date.strftime("%Y-%m-%d"),
+                        "ma_period": ma_period,
+                        "ma_protection": ma_protection,
+                        "initial_positions": initial_positions,
+                        "initial_cash": initial_cash,
+                        "min_buy_times": min_buy_times,
+                        "price_range_min": price_range_min,
+                        "price_range_max": price_range_max,
+                        "n_trials": n_trials,
+                        "top_n": top_n,
+                        "enable_segments": enable_segments,
+                        "profit_calc_method": profit_calc_method,
+                        "connect_segments": connect_segments
+                    })
+                    
+                    print("[DEBUG] Creating progress indicators")
+                    # 创建进度条和状态文本容器
+                    with results_col:
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                    
+                    print("[DEBUG] Starting optimization")
+                    # Start optimization
+                    results = start_optimization(
+                        symbol=symbol,
+                        symbol_name=symbol_name,
+                        start_date=start_date,
+                        end_date=end_date,
+                        ma_period=ma_period,
+                        ma_protection=ma_protection,
+                        initial_positions=initial_positions,
+                        initial_cash=initial_cash,
+                        min_buy_times=min_buy_times,
+                        price_range_min=price_range_min,
+                        price_range_max=price_range_max,
+                        n_trials=n_trials,
+                        top_n=top_n,
+                        profit_calc_method=profit_calc_method,
+                        connect_segments=connect_segments,
+                        progress_bar=progress_bar,
+                        status_text=status_text
+                    )
+                    
+                    if results:
+                        print("[DEBUG] Optimization completed successfully")
+                        # Display optimization results
+                        st.session_state['new_results'] = True
+                        st.session_state['optimization_results'] = results
+                        st.experimental_rerun()
+                    else:
+                        print("[DEBUG] Optimization failed")
+                        
+            except Exception as e:
+                print(f"[ERROR] Error in parameter input section: {str(e)}")
+                import traceback
+                print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+                st.error(f"发生错误: {str(e)}")
+        
+        print("[DEBUG] Checking for existing results")
+        # 如果session state中有优化结果，显示结果
+        if 'optimization_results' in st.session_state:
+            try:
+                if st.session_state.get('new_results', False):
+                    print("[DEBUG] Displaying new optimization results")
+                    display_optimization_results(st.session_state['optimization_results'], top_n)
+                    st.session_state['new_results'] = False
+                else:
+                    print("[DEBUG] Displaying existing optimization results")
+                    display_optimization_results(None, top_n)
+            except Exception as e:
+                print(f"[ERROR] Error displaying optimization results: {str(e)}")
+                import traceback
+                print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+                st.error(f"显示优化结果时发生错误: {str(e)}")
+                
+    except Exception as e:
+        print(f"[ERROR] Critical error in main function: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+        st.error(f"程序发生严重错误: {str(e)}")
 
 if __name__ == "__main__":
-    main() 
+    try:
+        print("[DEBUG] Starting application")
+        main()
+        print("[DEBUG] Application completed normally")
+    except Exception as e:
+        print(f"[ERROR] Application crashed: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+        st.error(f"程序崩溃: {str(e)}") 
