@@ -8,14 +8,14 @@ import sys
 from typing import Dict, Optional, Tuple, Any
 
 # 添加项目根目录到Python路径
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(ROOT_DIR)
 
-from grid_strategy import GridStrategy
-from trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
+from src.services.business.grid_strategy import GridStrategy
+from src.services.business.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
 import optuna
-from locales.localization import _
-from stock_grid_optimizer import GridStrategyOptimizer
+from src.utils.localization import _
+from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
 
 # 配置日志
 logging.basicConfig(
@@ -24,8 +24,8 @@ logging.basicConfig(
 )
 
 # 获取项目根目录的路径
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_FILE = os.path.join(ROOT_DIR, "data", "grid_strategy_config.json")
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+CONFIG_FILE = os.path.join(ROOT_DIR, "resources", "data", "grid_strategy_config.json")
 
 def display_strategy_details(strategy_params):
     """
@@ -321,7 +321,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
                                     st.write(f"  - {_(reason)}: {count} {_('times')}")
                 
                 # 添加查看详细交易记录的按钮
-                button_key = f"details_{i}_{id(trial)}"  # 使用trial对象的id确保key的唯一性
+                button_key = f"details_{i}_{id(trial)}"  # 使用trial对象的id确保key的唯一
                 print(f"[DEBUG] Creating view details button with key: {button_key}")
                 if st.button(_("view_details"), key=button_key):
                     print(f"[DEBUG] View details button {i} clicked")
@@ -448,7 +448,7 @@ def validate_symbol(symbol: str) -> bool:
 
 def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
     """
-    更新证券信息��返回证券名称和价格区间
+    更新证券信息返回证券名称和价格区间
     """
     try:
         # 获证券信息
@@ -457,8 +457,15 @@ def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
             st.error(_("symbol_not_found"))
             return None, None
         
-        # 获取价格区间
-        price_min, price_max = calculate_price_range(symbol, datetime.now() - timedelta(days=30), datetime.now(), security_type)
+        # 获价格区间
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        price_min, price_max = calculate_price_range(
+            symbol,
+            start_date.strftime("%Y%m%d"),
+            end_date.strftime("%Y%m%d"),
+            security_type
+        )
         if price_min is None or price_max is None:
             st.error(_("failed_to_get_price_range"))
             return name, None
@@ -544,7 +551,7 @@ def optimize_strategy(optimizer, config):
         config: 配置参数字典
     
     Returns:
-        dict: 优化结果，���含最佳参数和收益率等信息
+        dict: 优化结果，含最佳参数和收益率等信息
     """
     try:
         # 运行优化
@@ -700,17 +707,15 @@ def main():
                 # Basic parameters
                 symbol = st.text_input(_("symbol_code"), value=config.get("symbol", "159300"), key="symbol_input")
                 
-                # 证券代码改变时更新信息
-                if symbol != config.get("symbol", ""):
-                    print(f"[DEBUG] Symbol changed to: {symbol}")
-                    if validate_symbol(symbol):
-                        name, price_range = update_symbol_info(symbol)
-                        if name:
-                            st.session_state.symbol_name = name
-                            if price_range:
-                                st.session_state.price_range_min = price_range[0]
-                                st.session_state.price_range_max = price_range[1]
-                
+                # 更新证券信息
+                if validate_symbol(symbol):
+                    name, price_range = update_symbol_info(symbol)
+                    if name:
+                        st.session_state.symbol_name = name
+                        if price_range:
+                            st.session_state.price_range_min = price_range[0]
+                            st.session_state.price_range_max = price_range[1]
+                            
                 symbol_name = st.text_input(_("symbol_name"), 
                                           value=st.session_state.get("symbol_name", config.get("symbol_name", "")),
                                           disabled=True)

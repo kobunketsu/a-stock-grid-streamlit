@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import io
 from contextlib import redirect_stdout
+from src.services.business.trading_utils import calculate_ma_price
 
 class GridStrategy:
     def __init__(self, symbol="560610", symbol_name="国开ETF"):
@@ -80,7 +81,7 @@ class GridStrategy:
             if isinstance(time, pd.Timestamp):
                 time = time.strftime('%Y-%m-%d')
             datetime.strptime(time, '%Y-%m-%d')
-            # 检查是否是未来日期
+            # 检���是否是未来日期
             if datetime.strptime(time, '%Y-%m-%d') > datetime.now():
                 if self.verbose:
                     print(f"不能在未来日期 {time} 进行交易")
@@ -109,7 +110,7 @@ class GridStrategy:
             self.cash -= amount
             self.trades.append({
                 "时间": time,
-                "操作": "买入",
+                "操���": "买入",
                 "价格": price,
                 "数量": self.shares_per_trade,
                 "金额": amount
@@ -143,7 +144,7 @@ class GridStrategy:
             ma_price = self.ma_data[self.ma_data['日期'] == time]['MA5'].iloc[0]
             if not self._check_ma_protection(price, ma_price, False):
                 if self.verbose:
-                    print(f"均线保护：当前价格 {price:.3f} 高于均线 {ma_price:.3f}")
+                    print(f"均线保���：当前价格 {price:.3f} 高于均线 {ma_price:.3f}")
                 return False
         
         # 首先验证价格是否在允许范围内
@@ -302,7 +303,7 @@ class GridStrategy:
                                 print(f"\n无法买入 - 所需资金 {required_cash:.2f}, 当前现金 {self.cash:.2f}")
                             self.failed_trades["现金不足"] += 1
                 
-                # 打印当日交易记录
+                # 打印当��交易记录
                 if verbose:
                     trades_after = len(self.trades)
                     if trades_after > trades_before:
@@ -392,7 +393,7 @@ class GridStrategy:
         segment_results = []
         all_output = []
         
-        # 如果没有提供时���段，则使用单一时间段
+        # 如果没有提供时间段，则使用单一时间段
         if not segments:
             segments = [(start_date, end_date)]
         
@@ -428,7 +429,7 @@ class GridStrategy:
                 'failed_trades': self.failed_trades.copy()
             }
             
-            # ��计统计信息
+            # 计算统计信息
             total_profit += profit_rate
             total_trades += len(self.trades)
             for reason, count in self.failed_trades.items():

@@ -1,10 +1,10 @@
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, MagicMock
 import pandas as pd
 from datetime import datetime, timedelta
-from trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
+from src.services.business.trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
 
-class TestMAUtils(unittest.TestCase):
+class TestTradingUtils(unittest.TestCase):
     """均线工具测试类"""
     
     def setUp(self):
@@ -150,7 +150,7 @@ class TestMAUtils(unittest.TestCase):
         mock_etf_hist.return_value = self.mock_data
         mock_stock_hist.return_value = self.mock_data
         
-        # 测试ETF
+        # 测���ETF
         price_min, price_max = calculate_price_range(
             "159300",
             "2024-01-01",
@@ -192,7 +192,7 @@ class TestMAUtils(unittest.TestCase):
         # 测试有效ETF代码
         self.assertTrue(is_valid_symbol("159300"))
         
-        # 测试有效股票代��
+        # 测试有效股票代码
         self.assertTrue(is_valid_symbol("000001"))
         
         # 测试无效代码

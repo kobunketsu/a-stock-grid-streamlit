@@ -1,8 +1,9 @@
 import unittest
-from unittest.mock import patch, MagicMock
-import pandas as pd
+from unittest.mock import patch
 from datetime import datetime, timedelta
-from segment_utils import build_segments, get_segment_days, BATCH_TO_DAYS_MAP
+import pandas as pd
+
+from src.services.business.segment_utils import build_segments, get_segment_days, BATCH_TO_DAYS_MAP
 
 class TestSegmentUtils(unittest.TestCase):
     """时间段工具测试类"""
@@ -64,7 +65,7 @@ class TestSegmentUtils(unittest.TestCase):
         
         segments = build_segments(self.start_date, self.end_date, 1)
         
-        # 应该使用工作日日历作为备选
+        # 应该使用工日日历作为备选
         self.assertGreater(len(segments), 0)
         for start, end in segments:
             self.assertLessEqual(start, end)
@@ -99,7 +100,7 @@ class TestSegmentUtils(unittest.TestCase):
         max_batch_segments = build_segments(self.start_date, self.end_date, 5)
         self.assertGreater(len(max_batch_segments), 0)
         
-        # 最小批次（长周期）应该产生更少的时间段
+        # 最小批次长周期）应该产生更少的时间段
         self.assertGreater(len(max_batch_segments), len(min_batch_segments))
         
         # 验证时间段长度与周期的关系

@@ -1,23 +1,21 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import streamlit as st
+import streamlit
 from datetime import datetime, timedelta
 import json
-import pandas as pd
-import streamlit.runtime.scriptrunner.script_runner
-from src.app import *
-from src.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
-from locales.localization import _
 
-class TestStreamlitApp(unittest.TestCase):
+from src.views.app import *
+from src.utils.localization import _
+
+class TestApp(unittest.TestCase):
     """Streamlit版本应用测试类"""
     
     def setUp(self):
         """测试前的准备工作"""
         # 创建mock对象
-        self.mock_is_valid_symbol = patch('src.app.is_valid_symbol').start()
-        self.mock_symbol_info = patch('src.app.get_symbol_info').start()
-        self.mock_price_range = patch('src.app.calculate_price_range').start()
+        self.mock_is_valid_symbol = patch('src.views.app.is_valid_symbol').start()
+        self.mock_symbol_info = patch('src.views.app.get_symbol_info').start()
+        self.mock_price_range = patch('src.views.app.calculate_price_range').start()
         
         # 设置mock对象的返回值
         self.mock_symbol_info.return_value = ("沪深300ETF", "ETF")
@@ -106,7 +104,7 @@ class TestStreamlitApp(unittest.TestCase):
         self.assertTrue(validate_top_n(5))
     
     @patch('streamlit.error')
-    @patch('src.app.is_valid_symbol')
+    @patch('src.views.app.is_valid_symbol')
     def test_error_handling(self, mock_is_valid_symbol, mock_error):
         """测试错误处理"""
         # 测试API错误
@@ -124,7 +122,7 @@ class TestStreamlitApp(unittest.TestCase):
     
     @patch('streamlit.sidebar')
     @patch('streamlit.button')
-    @patch('src.app.start_optimization')
+    @patch('src.views.app.start_optimization')
     @patch('streamlit.experimental_rerun')
     @patch('streamlit.session_state', new_callable=dict)
     def test_optimization_control(self, mock_session_state, mock_rerun, mock_start_optimization, mock_button, mock_sidebar):

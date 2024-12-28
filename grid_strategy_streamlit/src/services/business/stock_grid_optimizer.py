@@ -3,14 +3,14 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Tuple, Optional, List
-from grid_strategy import GridStrategy  # 导入GridStrategy类
+from src.services.business.grid_strategy import GridStrategy  # 导入GridStrategy类
 import akshare as ak
 import tkinter as tk
 from tkinter import ttk
 import threading
 import io
 from contextlib import redirect_stdout
-from segment_utils import build_segments, BATCH_TO_DAYS_MAP
+from src.services.business.segment_utils import build_segments, BATCH_TO_DAYS_MAP
 
 class GridStrategyOptimizer:
     """
@@ -281,7 +281,7 @@ class GridStrategyOptimizer:
         """
         计算开始时间的均线价格
         @param ma_period: 均线周期
-        @return: 计算得到的均线价格，失败时返回None
+        @return: ��算得到的均线价格，失败时返回None
         """
         try:
             start_date_str = (self.start_date - timedelta(days=ma_period*2)).strftime('%Y%m%d')
@@ -395,7 +395,7 @@ class GridStrategyOptimizer:
             strategy.base_price = self.fixed_params["base_price"]
             strategy.price_range = self.fixed_params["price_range"]
             
-            # 根据是否衔接���置初始资金和持仓
+            # 根据是否衔接资金和持仓
             if self.connect_segments and i > 0:
                 strategy.initial_positions = current_positions
                 strategy.positions = current_positions
@@ -542,7 +542,7 @@ class GridStrategyOptimizer:
         """
         分阶段执行参数优化
         """
-        total_trials = n_trials * 1.5  # 总试验次数（包括两个阶段）
+        total_trials = n_trials * 1.5  # 总��验次数（包括两个阶段）
         current_trial = 0
 
         def callback(study, trial):
@@ -868,7 +868,7 @@ class GridStrategyOptimizer:
                     print(f"参数 {param_name} 的值 {value} 超出范围 [{param_range['min']}, {param_range['max']}]")
                     return False
             
-            # 验证回调率和反弹率是否小于主要比率
+            # 验证��调率和反弹率是否小于主要比率
             if params["up_callback_rate"] >= params["up_sell_rate"]:
                 print("上涨回调率必须小于上涨卖出率")
                 return False

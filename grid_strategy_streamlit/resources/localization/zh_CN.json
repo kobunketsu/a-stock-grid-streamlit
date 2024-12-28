@@ -32,7 +32,7 @@
     "calculation_method": "计算方式",
     "mean": "平均值",
     "median": "中值",
-    "connect_cash_and_positions": "资金和持仓衔接",
+    "connect_segments": "资金和持仓衔接",
     
     "up_sell": "上涨卖出",
     "up_callback": "上涨回调",
@@ -44,6 +44,7 @@
     "view_details": "查看详情",
     "start_optimization": "开始优化",
     "cancel_optimization": "取消优化",
+    "close_details": "关闭详情",
     
     "parameter_details": "参数详情",
     "trade_records": "交易记录",
@@ -54,6 +55,10 @@
     "to": "至",
     "backtest": "回测",
     "segment": "分段",
+    "period": "时间段",
+    "profit_rate": "收益率",
+    "trade_count": "交易次数",
+    "segment_results": "分段结果",
     
     "please_enter_symbol_code": "请输入证券代码",
     "please_enter_valid_symbol_code": "请输入有效的证券代码",
@@ -66,6 +71,7 @@
     "price_range_min_must_be_less_than_price_range_max": "最小价格必须小于最大价格",
     "n_trials_must_be_greater_than_0": "优化次数必须大于0",
     "top_n_must_be_greater_than_0": "显示结果数必须大于0",
+    "end_date_must_be_later_than_start_date": "结束日期必须晚于开始日期",
     
     "loaded_config_file": "已加载配置文件",
     "config_saved": "配置已保存",
@@ -84,7 +90,6 @@
     "segment_period_format": "时间段: {0} 至 {1}",
     "total_profit_rate_format": "总收益率: {0:.2f}%",
     "trade_count_format": "交易次数: {0}",
-    "trade_count": "交易次数",
     "total_segments_format": "总段数: {0}",
     "average_profit_rate_format": "平均收益率: {0:.2f}%",
     "median_profit_rate_format": "中值收益率: {0:.2f}%",
@@ -96,5 +101,21 @@
     "optimization_progress_format": "正在优化参数... ({0}/{1})",
     "no_symbol_found_format": "未找到包含 '{0}' 的证券",
     "profit_rate_sort": "收益率 {0}",
-    "symbol_not_found": "未找到证券"
+    "symbol_not_found": "未找到证券",
+    "failed_to_get_price_range": "获取价格区间失败",
+    "failed_to_update_symbol_info_format": "更新证券信息失败: {0}",
+    "date_validation_error_format": "日期验证错误: {0}",
+    "initial_cash_validation_error_format": "初始资金验证错误: {0}",
+    "min_buy_times_validation_error_format": "最少买入次数验证错误: {0}",
+    "price_range_validation_error_format": "价格区间验证错误: {0}",
+    "n_trials_validation_error_format": "优化次数验证错误: {0}",
+    "top_n_validation_error_format": "显示结果数验证错误: {0}",
+    "parameter_validation_error_format": "参数验证错误: {0}",
+    "optimization_error_format": "优化错误: {0}",
+    "initializing_optimization": "正在初始化优化...",
+    "optimization_completed": "优化完成",
+    "click_view_details_to_see_trade_details": "点击查看详情按钮查看交易详情",
+    "no_parameter_combinations_with_profit_greater_than_0_found": "未找到收益率大于0的参数组合",
+    "days_per_segment": "每段区间",
+    "trading_days": "个交易日"
 } 

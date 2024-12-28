@@ -1,8 +1,9 @@
 import unittest
-from stock_grid_optimizer import GridStrategyOptimizer
-from datetime import datetime
+from unittest.mock import patch, MagicMock
 import pandas as pd
-import numpy as np
+from datetime import datetime, timedelta
+
+from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
 
 class TestGridStrategyOptimizer(unittest.TestCase):
     def setUp(self):

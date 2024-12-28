@@ -2,13 +2,8 @@ import unittest
 from unittest.mock import patch
 import pandas as pd
 from datetime import datetime, timedelta
-import os
-import sys
 
-# 添加src目录到Python路径
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from grid_strategy import GridStrategy
+from src.services.business.grid_strategy import GridStrategy
 
 class TestGridStrategy(unittest.TestCase):
     """网格策略测试类"""
@@ -158,7 +153,7 @@ class TestGridStrategy(unittest.TestCase):
     def test_trade_failure_recording(self):
         """测试交易失败记录"""
         # 测试买入失败记录
-        self.strategy.cash = 0  # ��置现金为0
+        self.strategy.cash = 0  # 设置现金为0
         self.strategy.buy(4.0, '2024-01-01')
         self.assertEqual(self.strategy.failed_trades['现金不足'], 1)
         
@@ -167,7 +162,7 @@ class TestGridStrategy(unittest.TestCase):
         self.strategy.sell(4.0, '2024-01-01')
         self.assertEqual(self.strategy.failed_trades['无持仓'], 1)
         
-        # 测试价格超出范围的失败记录
+        # ��试价格超出范围的失败记录
         self.strategy.buy(3.8, '2024-01-01')  # 低于最低价
         self.assertEqual(self.strategy.failed_trades['买入价格超范围'], 1)
         
@@ -188,7 +183,7 @@ class TestGridStrategy(unittest.TestCase):
     def test_empty_data_handling(self):
         """测试空数据处理"""
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
-            # 设置返��空数据
+            # 设置返回空数据
             mock_hist_data.return_value = pd.DataFrame()
             
             # 测试空数据异常

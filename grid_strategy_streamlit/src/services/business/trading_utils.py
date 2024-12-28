@@ -24,7 +24,7 @@ def calculate_ma_price(symbol: str, start_date: datetime, ma_period: int, securi
             df = ak.fund_etf_hist_em(symbol=symbol, start_date=start_date_str, end_date=end_date_str, adjust="qfq")
         
         if df.empty:
-            print("未获取到任何数据")
+            print("未获取到任���数据")
             return None, None
         
         # 确保日期列为索引且按时间升序排列
@@ -60,17 +60,19 @@ def get_symbol_info(symbol: str) -> Tuple[Optional[str], str]:
     @return: (证券名称, 证券类型)的元组，如果未找到则返回(None, "ETF")
     """
     try:
-        # 自动判断证券类型
+        # 自动判断证券类��
         security_type = "ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK"
         
         if security_type == "ETF":
             df = ak.fund_etf_spot_em()
             if symbol in df['代码'].values:
-                return df[df['代码'] == symbol]['名称'].values[0], security_type
+                name = df[df['代码'] == symbol]['名称'].iloc[0]
+                return name, security_type
         else:
             df = ak.stock_zh_a_spot_em()
             if symbol in df['代码'].values:
-                return df[df['代码'] == symbol]['名称'].values[0], security_type
+                name = df[df['代码'] == symbol]['名称'].iloc[0]
+                return name, security_type
                 
         return None, security_type
         
