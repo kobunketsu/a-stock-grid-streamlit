@@ -117,5 +117,13 @@
     "click_view_details_to_see_trade_details": "点击查看详情按钮查看交易详情",
     "no_parameter_combinations_with_profit_greater_than_0_found": "未找到收益率大于0的参数组合",
     "days_per_segment": "每段区间",
-    "trading_days": "个交易日"
+    "trading_days": "个交易日",
+    "failed_to_get_symbol_by_name_format": "通过名称获取证券代码失败: {}",
+    "failed_to_update_symbol_by_name_format": "通过名称更新证券代码失败: {}",
+    "please_enter_symbol_name": "请输入证券名称",
+    "symbol_name_or_code": "证券名称或代码",
+    "enter_symbol_name_or_code": "输入证券名称或代码",
+    "failed_to_validate_symbol_format": "验证证券代码失败: {0}",
+    "failed_to_get_symbol_by_name_or_code_format": "通过名称或代码获取证券信息失败: {0}",
+    "symbol_not_found": "未找到证券，请检查输入的名称或代码是否正确"
 } 

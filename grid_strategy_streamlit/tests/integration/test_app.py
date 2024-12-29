@@ -3,6 +3,8 @@ from unittest.mock import patch, MagicMock
 import streamlit
 from datetime import datetime, timedelta
 import json
+import logging
+import os
 
 from src.views.app import *
 from src.utils.localization import _
@@ -10,8 +12,21 @@ from src.utils.localization import _
 class TestApp(unittest.TestCase):
     """Streamlit版本应用测试类"""
     
+    @classmethod
+    def setUpClass(cls):
+        """测试类初始化时的设置"""
+        # 设置日志
+        logging.basicConfig(level=logging.DEBUG)
+        cls.logger = logging.getLogger(__name__)
+        cls.logger.debug("开始运行测试用例")
+        
+        # 验证环境变量
+        cls.logger.debug(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
+        cls.logger.debug(f"当前工作目录: {os.getcwd()}")
+    
     def setUp(self):
         """测试前的准备工作"""
+        self.logger.debug(f"开始测试: {self._testMethodName}")
         # 创建mock对象
         self.mock_is_valid_symbol = patch('src.views.app.is_valid_symbol').start()
         self.mock_symbol_info = patch('src.views.app.get_symbol_info').start()
@@ -24,6 +39,7 @@ class TestApp(unittest.TestCase):
     
     def tearDown(self):
         """测试后的清理工作"""
+        self.logger.debug(f"结束测试: {self._testMethodName}")
         patch.stopall()
     
     def test_validate_symbol(self):
@@ -31,7 +47,7 @@ class TestApp(unittest.TestCase):
         # 测试空证券代码
         self.assertFalse(validate_symbol(""))
         
-        # 测试无效的证券代码
+        # 测试有效的证券代码
         self.mock_is_valid_symbol.return_value = False
         self.assertFalse(validate_symbol("invalid"))
         
@@ -127,6 +143,16 @@ class TestApp(unittest.TestCase):
     @patch('streamlit.session_state', new_callable=dict)
     def test_optimization_control(self, mock_session_state, mock_rerun, mock_start_optimization, mock_button, mock_sidebar):
         """测试优化控制功能"""
+        # 设置必要的session state值
+        mock_session_state.update({
+            "symbol": "159300",
+            "symbol_name": "沪深300ETF",
+            "last_symbol": "159300",
+            "last_symbol_name": "沪深300ETF",
+            "price_range_min": 3.9,
+            "price_range_max": 4.3
+        })
+        
         # 模拟优化结果
         mock_results = {
             "sorted_trials": [
@@ -294,6 +320,139 @@ class TestApp(unittest.TestCase):
             self.assertIsNone(mock_session_state.get('current_trial'))
             self.assertIsNone(mock_session_state.get('current_trial_index'))
     
+    @patch('streamlit.text_input')
+    @patch('streamlit.session_state', new_callable=dict)
+    @patch('streamlit.experimental_rerun')
+    def test_update_symbol_by_name(self, mock_rerun, mock_session_state, mock_text_input):
+        """测试通过股票名称或代码更新股票信息"""
+        self.logger.debug("开始测试 test_update_symbol_by_name")
+        
+        # 设置配置文件的模拟返回值
+        mock_config = {
+            "symbol": "159300",
+            "symbol_name": "沪深300ETF"
+        }
+        self.logger.debug(f"模拟配置文件: {mock_config}")
+        
+        # 初始化session_state
+        mock_session_state.update({
+            "internal_symbol": "159300",
+            "symbol_name": "沪深300ETF",
+            "symbol_name_input": "沪深300ETF",
+            "last_symbol_name": "沪深300ETF"
+        })
+        self.logger.debug(f"初始化session_state: {mock_session_state}")
+        
+        with patch('src.views.app.load_config') as mock_load_config:
+            mock_load_config.return_value = mock_config
+            self.logger.debug("已设置模拟配置文件加载")
+            
+            # 模拟text_input的返回值
+            def text_input_side_effect(*args, **kwargs):
+                self.logger.debug(f"text_input被调用，参数: args={args}, kwargs={kwargs}")
+                if kwargs.get('key') == 'symbol_name_input':
+                    value = st.session_state.get('symbol_name_input', '')
+                    self.logger.debug(f"返回symbol_name_input值: {value}")
+                    return value
+                return ''
+                
+            mock_text_input.side_effect = text_input_side_effect
+            self.logger.debug("已设置text_input的模拟行为")
+            
+            # 测试场景1：初始加载（使用配置文件的值）
+            self.logger.debug("开始测试场景1：初始加载")
+            main()
+            
+            # 验证初始状态
+            self.logger.debug("验证初始状态")
+            self.assertEqual(mock_session_state.get("internal_symbol"), "159300")
+            self.assertEqual(mock_session_state.get("symbol_name"), "沪深300ETF")
+            
+            # 测试场景2：输入股票名称
+            self.logger.debug("开始测试场景2：输入股票名称")
+            with patch('src.views.app.get_symbol_by_name') as mock_get_symbol:
+                mock_get_symbol.return_value = ("000001", "STOCK")
+                self.logger.debug("模拟get_symbol_by_name返回: ('000001', 'STOCK')")
+                
+                with patch('src.views.app.update_symbol_info') as mock_update_info:
+                    mock_update_info.return_value = ("平安银行", (13.5, 14.2))
+                    self.logger.debug("模拟update_symbol_info返回: ('平安银行', (13.5, 14.2))")
+                    
+                    # 模拟用户输入新的股票名称
+                    mock_session_state["symbol_name_input"] = "平安银行"
+                    mock_session_state["last_symbol_name"] = "沪深300ETF"
+                    self.logger.debug("设置session_state: symbol_name_input='平安银行', last_symbol_name='沪深300ETF'")
+                    
+                    # 调用main函数触发更新
+                    main()
+                    self.logger.debug("已调用main函数进行更新")
+                    
+                    # 验证更新后的状态
+                    self.logger.debug("验证更新后的状态")
+                    self.assertEqual(mock_session_state["internal_symbol"], "000001")
+                    self.assertEqual(mock_session_state["symbol_name"], "平安银行")
+                    self.assertEqual(mock_session_state["last_symbol_name"], "平安银行")
+                    self.assertEqual(mock_session_state["price_range_min"], 13.5)
+                    self.assertEqual(mock_session_state["price_range_max"], 14.2)
+                    
+                    # 测试场景3：输入股票代码
+                    self.logger.debug("开始测试场景3：输入股票代码")
+                    mock_get_symbol.return_value = ("600519", "STOCK")
+                    mock_update_info.return_value = ("贵州茅台", (1680.0, 1720.0))
+                    self.logger.debug("模拟返回值: get_symbol_by_name=('600519', 'STOCK'), update_symbol_info=('贵州茅台', (1680.0, 1720.0))")
+                    
+                    # 模拟用户输入股票代码
+                    mock_session_state["symbol_name_input"] = "600519"
+                    mock_session_state["last_symbol_name"] = "平安银行"
+                    self.logger.debug("设置session_state: symbol_name_input='600519', last_symbol_name='平安银行'")
+                    
+                    # 调用main函数触发更新
+                    main()
+                    self.logger.debug("已调用main函数进行更新")
+                    
+                    # 验证更新后的状态
+                    self.logger.debug("验证更新后的状态")
+                    self.assertEqual(mock_session_state["internal_symbol"], "600519")
+                    self.assertEqual(mock_session_state["symbol_name"], "贵州茅台")
+                    self.assertEqual(mock_session_state["last_symbol_name"], "贵州茅台")
+                    self.assertEqual(mock_session_state["price_range_min"], 1680.0)
+                    self.assertEqual(mock_session_state["price_range_max"], 1720.0)
+                    
+                    # 测试场景4：输入不存在的股票名称或代码
+                    self.logger.debug("开始测试场景4：输入不存在的股票名称或代码")
+                    mock_get_symbol.return_value = (None, None)
+                    self.logger.debug("模拟get_symbol_by_name返回: (None, None)")
+                    
+                    # 模拟用户输入不存在的股票
+                    mock_session_state["symbol_name_input"] = "不存在的股票"
+                    mock_session_state["last_symbol_name"] = "贵州茅台"
+                    self.logger.debug("设置session_state: symbol_name_input='不存在的股票', last_symbol_name='贵州茅台'")
+                    
+                    # 调用main函数
+                    main()
+                    self.logger.debug("已调用main函数")
+                    
+                    # 验证状态保持不变
+                    self.logger.debug("验证状态保持不变")
+                    self.assertEqual(mock_session_state["internal_symbol"], "600519")
+                    self.assertEqual(mock_session_state["symbol_name"], "贵州茅台")
+                    
+                    # 测试场景5：输入空值
+                    self.logger.debug("开始测试场景5：输入空值")
+                    mock_session_state["symbol_name_input"] = ""
+                    mock_session_state["last_symbol_name"] = "贵州茅台"
+                    self.logger.debug("设置session_state: symbol_name_input='', last_symbol_name='贵州茅台'")
+                    
+                    # 调用main函数
+                    main()
+                    self.logger.debug("已调用main函数")
+                    
+                    # 验证状态保持不变
+                    self.logger.debug("验证状态保持不变")
+                    self.assertEqual(mock_session_state["internal_symbol"], "600519")
+                    self.assertEqual(mock_session_state["symbol_name"], "贵州茅台")
+        
+        self.logger.debug("test_update_symbol_by_name测试完成")
 
 if __name__ == '__main__':
     unittest.main()

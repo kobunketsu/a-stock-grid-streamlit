@@ -432,17 +432,22 @@ def save_config(config):
 def validate_symbol(symbol: str) -> bool:
     """验证证券代码"""
     try:
+        print(f"[DEBUG] Validating symbol: {symbol}")
         if not symbol:
-            st.error(_("please_enter_symbol_code"))
+            print("[DEBUG] Symbol is empty")
+            st.error(_("please_enter_symbol_name_or_code"))
             return False
         
         if not is_valid_symbol(symbol):
+            print(f"[DEBUG] Symbol {symbol} is not valid")
             st.error(_("please_enter_valid_symbol_code"))
             return False
         
+        print(f"[DEBUG] Symbol {symbol} is valid")
         return True
         
     except Exception as e:
+        print(f"[ERROR] Error validating symbol: {str(e)}")
         st.error(_("failed_to_validate_symbol_format").format(str(e)))
         return False
 
@@ -451,28 +456,36 @@ def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
     更新证券信息返回证券名称和价格区间
     """
     try:
+        print(f"[DEBUG] Updating symbol info for: {symbol}")
         # 获证券信息
         name, security_type = get_symbol_info(symbol)
+        print(f"[DEBUG] Got symbol info - name: {name}, type: {security_type}")
         if name is None:
+            print("[DEBUG] Symbol not found")
             st.error(_("symbol_not_found"))
             return None, None
         
         # 获价格区间
         end_date = datetime.now()
         start_date = end_date - timedelta(days=30)
+        print(f"[DEBUG] Calculating price range from {start_date} to {end_date}")
         price_min, price_max = calculate_price_range(
             symbol,
             start_date.strftime("%Y%m%d"),
             end_date.strftime("%Y%m%d"),
             security_type
         )
+        print(f"[DEBUG] Got price range - min: {price_min}, max: {price_max}")
         if price_min is None or price_max is None:
+            print("[DEBUG] Failed to get price range")
             st.error(_("failed_to_get_price_range"))
             return name, None
         
+        print(f"[DEBUG] Successfully updated symbol info - name: {name}, price range: ({price_min}, {price_max})")
         return name, (price_min, price_max)
         
     except Exception as e:
+        print(f"[ERROR] Error updating symbol info: {str(e)}")
         st.error(_("failed_to_update_symbol_info_format").format(str(e)))
         return None, None
 
@@ -676,6 +689,52 @@ def update_segment_days(min_buy_times: int) -> str:
         logging.error(f"计算分段天数失败: {str(e)}")
         return ""
 
+def get_symbol_by_name(name_or_code: str) -> Tuple[str, str]:
+    """
+    通过股票名称或代码获取股票代码和类型
+    
+    Args:
+        name_or_code: 股票名称或代码
+        
+    Returns:
+        Tuple[str, str]: (股票代码, 股票类型)，如果未找到返回(None, None)
+    """
+    try:
+        print(f"[DEBUG] Getting symbol by name or code: {name_or_code}")
+        import akshare as ak
+        
+        # 获取A股股票代码和名称
+        stock_info_df = ak.stock_info_a_code_name()
+        print(f"[DEBUG] Got {len(stock_info_df)} stocks from A market")
+        
+        # 获取ETF基金代码和名称
+        etf_info_df = ak.fund_etf_category_sina()
+        print(f"[DEBUG] Got {len(etf_info_df)} ETFs from market")
+        
+        # 在A股中查找
+        stock_match = stock_info_df[(stock_info_df['name'] == name_or_code) | (stock_info_df['code'] == name_or_code)]
+        if not stock_match.empty:
+            code = stock_match.iloc[0]['code']
+            print(f"[DEBUG] Found stock: code={code}, name={stock_match.iloc[0]['name']}")
+            return code, "STOCK"
+            
+        # 在ETF中查找
+        etf_match = etf_info_df[(etf_info_df['基金名称'] == name_or_code) | (etf_info_df['代码'] == name_or_code)]
+        if not etf_match.empty:
+            code = etf_match.iloc[0]['代码']
+            print(f"[DEBUG] Found ETF: code={code}, name={etf_match.iloc[0]['基金名称']}")
+            return code, "ETF"
+            
+        print(f"[DEBUG] Symbol not found for name or code: {name_or_code}")
+        return None, None
+        
+    except Exception as e:
+        print(f"[ERROR] Error getting symbol by name or code: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+        st.error(_("failed_to_get_symbol_by_name_or_code_format").format(str(e)))
+        return None, None
+
 def main():
     """
     Main function for the Streamlit app
@@ -693,6 +752,7 @@ def main():
         # Load configuration
         print("[DEBUG] Loading configuration")
         config = load_config()
+        print(f"[DEBUG] Loaded config: {config}")
         
         # Create three columns for the layout and store them in session state
         params_col, results_col, details_col = st.columns([1, 2, 2])
@@ -704,21 +764,72 @@ def main():
         # Left column - Parameters
         with params_col:
             try:
-                # Basic parameters
-                symbol = st.text_input(_("symbol_code"), value=config.get("symbol", "159300"), key="symbol_input")
+                # 检查是否需要通过股票名称更新股票代码
+                symbol_name_input = st.session_state.get("symbol_name_input", "")
+                last_symbol_name = st.session_state.get("last_symbol_name", "")
+                print(f"[DEBUG] Checking symbol name update - current: {symbol_name_input}, last: {last_symbol_name}")
                 
-                # 更新证券信息
-                if validate_symbol(symbol):
-                    name, price_range = update_symbol_info(symbol)
-                    if name:
-                        st.session_state.symbol_name = name
-                        if price_range:
-                            st.session_state.price_range_min = price_range[0]
-                            st.session_state.price_range_max = price_range[1]
-                            
-                symbol_name = st.text_input(_("symbol_name"), 
-                                          value=st.session_state.get("symbol_name", config.get("symbol_name", "")),
-                                          disabled=True)
+                if symbol_name_input and symbol_name_input != last_symbol_name:
+                    print(f"[DEBUG] Symbol name changed from {last_symbol_name} to {symbol_name_input}")
+                    # 通过名称获取代码
+                    symbol_code, security_type = get_symbol_by_name(symbol_name_input)
+                    print(f"[DEBUG] Got symbol code: {symbol_code}, type: {security_type}")
+                    
+                    if symbol_code:
+                        # 更新session state
+                        st.session_state["internal_symbol"] = symbol_code
+                        print(f"[DEBUG] Updated internal_symbol to: {symbol_code}")
+                        
+                        # 获取股票信息
+                        name, price_range = update_symbol_info(symbol_code)
+                        print(f"[DEBUG] Got symbol info - name: {name}, price_range: {price_range}")
+                        
+                        if name:
+                            st.session_state["symbol_name"] = name
+                            st.session_state["last_symbol_name"] = name
+                            if price_range:
+                                st.session_state["price_range_min"] = price_range[0]
+                                st.session_state["price_range_max"] = price_range[1]
+                                print(f"[DEBUG] Updated session state with price range: {price_range}")
+                
+                print("[DEBUG] Getting symbol name input")
+                # 使用当前session state中的值作为默认值
+                current_symbol_name = st.session_state.get("symbol_name", config.get("symbol_name", ""))
+                last_symbol_name = st.session_state.get("last_symbol_name", "")
+                print(f"[DEBUG] Current symbol name: {current_symbol_name}, last: {last_symbol_name}")
+                
+                symbol_name = st.text_input(_("symbol_name_or_code"), 
+                                          value=current_symbol_name,
+                                          placeholder=_("enter_symbol_name_or_code"),
+                                          key="symbol_name_input")
+                print(f"[DEBUG] New symbol name input: {symbol_name}")
+                
+                # 如果用户输入了新的股票名称或代码，直接触发更新
+                if symbol_name and symbol_name != last_symbol_name:
+                    print(f"[DEBUG] Symbol name changed from {last_symbol_name} to {symbol_name}")
+                    # 通过名称或代码获取代码
+                    symbol_code, security_type = get_symbol_by_name(symbol_name)
+                    print(f"[DEBUG] Got symbol code: {symbol_code}, type: {security_type}")
+                    
+                    if symbol_code:
+                        # 更新session state
+                        st.session_state["internal_symbol"] = symbol_code
+                        
+                        # 获取股票信息
+                        name, price_range = update_symbol_info(symbol_code)
+                        print(f"[DEBUG] Got symbol info - name: {name}, price_range: {price_range}")
+                        
+                        if name:
+                            st.session_state["symbol_name"] = name
+                            st.session_state["last_symbol_name"] = name
+                            if price_range:
+                                st.session_state["price_range_min"] = price_range[0]
+                                st.session_state["price_range_max"] = price_range[1]
+                                print(f"[DEBUG] Updated session state with price range: {price_range}")
+                            st.experimental_rerun()
+                    else:
+                        st.error(_("symbol_not_found"))
+                
                 start_date = st.date_input(_("start_date"), 
                                          value=datetime.strptime(config.get("start_date", "2024-10-10"), "%Y-%m-%d"))
                 end_date = st.date_input(_("end_date"), 
