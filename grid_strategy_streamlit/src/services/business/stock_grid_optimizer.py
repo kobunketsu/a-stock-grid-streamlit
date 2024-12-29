@@ -5,8 +5,6 @@ import pandas as pd
 from typing import Dict, Any, Tuple, Optional, List
 from src.services.business.grid_strategy import GridStrategy  # 导入GridStrategy类
 import akshare as ak
-import tkinter as tk
-from tkinter import ttk
 import threading
 import io
 from contextlib import redirect_stdout
