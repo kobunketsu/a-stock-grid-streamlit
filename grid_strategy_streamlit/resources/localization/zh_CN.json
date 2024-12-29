@@ -121,7 +121,7 @@
     "failed_to_get_symbol_by_name_format": "通过名称获取证券代码失败: {}",
     "failed_to_update_symbol_by_name_format": "通过名称更新证券代码失败: {}",
     "please_enter_symbol_name": "请输入证券名称",
-    "symbol_name_or_code": "证券名称或代码",
+    "symbol_name_or_code": "证券名称",
     "enter_symbol_name_or_code": "输入证券名称或代码",
     "failed_to_validate_symbol_format": "验证证券代码失败: {0}",
     "failed_to_get_symbol_by_name_or_code_format": "通过名称或代码获取证券信息失败: {0}",

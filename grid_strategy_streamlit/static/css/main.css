@@ -1,0 +1,169 @@
+/* 标签样式：去掉强制100%高度，让标签自然撑开 */
+.stMarkdown, 
+.stMarkdown > div,
+.stMarkdown div[data-testid="stMarkdownContainer"],
+.stMarkdown .css-k7vsyb,
+.stMarkdown .css-zt5igj,
+.stMarkdown h4 {
+    /* 原本有 height: 100%; 改为 auto，允许自然撑开 */
+    height: auto;     
+    min-width: 0;     /* 允许flex子项收缩 */
+}
+
+/* 继续保持标签 h4 的其他样式，根据需求微调 padding、行高等 */
+.stMarkdown h4 {
+    margin: 0;
+    /* 根据需要微调上下左右内边距，让文本与输入框对齐更好看 */
+    padding: 0.5rem 1rem;      
+    white-space: nowrap;       /* 防止文字换行 */
+    overflow: hidden;          /* 隐藏溢出内容 */
+    text-overflow: ellipsis;   /* 显示省略号 */
+    line-height: 1.4;          /* 可视需要微调行高 */
+}
+
+/* 输入框样式 */
+.stNumberInput {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stNumberInput div[data-baseweb="input"] {
+    background-color: transparent;
+}
+
+.stTextInput {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stTextInput div[data-baseweb="input"] {
+    background-color: transparent;
+}
+
+/* 日期选择器样式 */
+.stDateInput {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stDateInput div[data-baseweb="input"] {
+    background-color: transparent;
+}
+
+/* 选择框样式 */
+.stSelectbox {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.stSelectbox div[data-baseweb="select"] {
+    background-color: transparent;
+}
+
+/* 复选框样式 */
+.stCheckbox {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+/* 列布局样式：使用 flex 让左右两列垂直居中对齐 */
+[data-testid="column"] {
+    display: flex !important;
+    align-items: center; 
+    padding: 0.5rem 0;  
+    min-width: auto !important;
+    flex: 1 !important;
+}
+
+/* 标签列样式 */
+[data-testid="column"]:first-child {
+    justify-content: flex-end;  /* 标签列内容右对齐 */
+}
+
+/* 输入列样式 */
+[data-testid="column"]:last-child {
+    justify-content: flex-start; /* 输入列内容左对齐 */
+}
+
+/* 水平布局容器样式 */
+[data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important;
+    gap: 0.5rem;
+}
+
+/* 按钮样式 */
+.stButton {
+    margin-top: 1rem;
+}
+
+.stButton button {
+    width: 100%;
+}
+
+/* 容器样式 */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+}
+
+/* 移动设备适配 */
+@media (max-width: 640px) {
+    .stMarkdown h4 {
+        font-size: 0.9em;
+    }
+    
+    [data-testid="column"] {
+        padding: 0.25rem 0;
+    }
+    
+    /* 确保水平布局在移动设备上也生效 */
+    [data-testid="stHorizontalBlock"] > [data-testid="column"] {
+        width: auto !important;
+        flex: none !important;
+    }
+    
+    /* 调整标签列的宽度 */
+    [data-testid="column"]:first-child {
+        min-width: 70% !important;
+        max-width: 100% !important;
+    }
+    
+    /* 调整输入列的宽度 */
+    [data-testid="column"]:last-child {
+        min-width: 60% !important;
+        max-width: 60% !important;
+    }
+    
+    /* 移动设备下左侧面板占满全屏 */
+    .css-1d391kg, .css-12oz5g7 {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* 隐藏其他列 */
+    .css-1d391kg ~ div {
+        display: none !important;
+    }
+    
+    /* 调整内容区域的padding */
+    .block-container {
+        padding: 1rem !important;
+        max-width: 100% !important;
+    }
+    
+    /* 调整表单布局 */
+    .stHorizontalBlock {
+        flex-direction: column !important;
+    }
+    
+    /* 调整输入框宽度 */
+    .stNumberInput, .stTextInput, .stDateInput, .stSelectbox {
+        width: 100% !important;
+    }
+}
