@@ -257,7 +257,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
     
     # 在结果列中显示优化结果
     with results_col:
-        st.header(_("optimization_results"))
+        st.markdown(f"### {_('optimization_results')}")
         print("[DEBUG] Filtering valid trials")
         # 获取前N个结果并过滤掉收益率<=0的结果
         valid_trials = [trial for trial in st.session_state['sorted_trials'] if -trial.value > 0]
@@ -752,7 +752,7 @@ def main():
         with open(css_path) as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
         
-        st.title(_("app_title"))
+        st.markdown("## " + _("app_title"))
         
         # Load configuration
         print("[DEBUG] Loading configuration")
@@ -760,7 +760,7 @@ def main():
         print(f"[DEBUG] Loaded config: {config}")
         
         # Create three columns for the layout and store them in session state
-        params_col, results_col, details_col = st.columns([1, 2, 2])
+        params_col, results_col, details_col = st.columns([2, 2, 2])
         st.session_state['params_col'] = params_col
         st.session_state['results_col'] = results_col
         st.session_state['details_col'] = details_col
@@ -802,7 +802,7 @@ def main():
                     st.markdown("### " + _("param_settings"))
                     
                     # 证券名称或代码输入
-                    label_col, input_col = st.columns([3, 4])  # 修改列宽比例
+                    label_col, input_col = st.columns([1, 1])  # 修改列宽比例
                     with label_col:
                         st.markdown("#### " + _("symbol_name_or_code"))
                     with input_col:
@@ -815,7 +815,7 @@ def main():
                         )
                     
                     # 日期选择
-                    label_col, input_col = st.columns([3, 4])  # 修改列宽比例
+                    label_col, input_col = st.columns([1, 1])  # 修改列宽比例
                     with label_col:
                         st.markdown("#### " + _("start_date"))
                     with input_col:
@@ -824,7 +824,7 @@ def main():
                             value=datetime.strptime(config.get("start_date", "2024-10-10"), "%Y-%m-%d")
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("end_date"))
                     with input_col:
@@ -834,7 +834,7 @@ def main():
                         )
                     
                     # 策略参数
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("ma_period"))
                     with input_col:
@@ -844,7 +844,7 @@ def main():
                             min_value=1
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("ma_protection"))
                     with input_col:
@@ -853,7 +853,7 @@ def main():
                             value=config.get("ma_protection", True)
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("initial_positions"))
                     with input_col:
@@ -863,7 +863,7 @@ def main():
                             min_value=0
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("initial_cash"))
                     with input_col:
@@ -873,7 +873,7 @@ def main():
                             min_value=0
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("min_buy_times"))
                     with input_col:
@@ -884,7 +884,7 @@ def main():
                         )
                     
                     # 价格区间
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("min_value"))
                     with input_col:
@@ -894,7 +894,7 @@ def main():
                             format="%.3f"
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("max_value"))
                     with input_col:
@@ -904,7 +904,7 @@ def main():
                             format="%.3f"
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("optimization_trials"))
                     with input_col:
@@ -914,7 +914,7 @@ def main():
                             min_value=1
                         )
                     
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("display_top_n_results"))
                     with input_col:
@@ -925,7 +925,7 @@ def main():
                         )
                     
                     # 分段设置
-                    label_col, input_col = st.columns([3, 4])
+                    label_col, input_col = st.columns([1, 1])
                     with label_col:
                         st.markdown("#### " + _("segmented_backtest"))
                     with input_col:
@@ -935,7 +935,7 @@ def main():
                         )
                     
                     if enable_segments:
-                        label_col, input_col = st.columns([3, 4])
+                        label_col, input_col = st.columns([1, 1])
                         with label_col:
                             st.markdown("#### " + _("calculation_method"))
                         with input_col:
@@ -945,7 +945,7 @@ def main():
                                 index=0 if config.get("profit_calc_method", "mean") == "mean" else 1
                             )
                         
-                        label_col, input_col = st.columns([3, 4])
+                        label_col, input_col = st.columns([1, 1])
                         with label_col:
                             st.markdown("#### " + _("connect_segments"))
                         with input_col:
@@ -965,6 +965,12 @@ def main():
                     # 开始按钮
                     if st.button(_("start_optimization"), use_container_width=True):
                         print("[DEBUG] Optimization button clicked")
+                        # 从session state获取symbol
+                        symbol = st.session_state.get("internal_symbol", "")
+                        if not symbol:
+                            st.error(_("please_input_valid_symbol"))
+                            return
+                            
                         # Validate all inputs
                         if not validate_all_inputs(
                             symbol=symbol,
