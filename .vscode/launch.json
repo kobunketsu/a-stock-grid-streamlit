@@ -8,7 +8,7 @@
             "module": "streamlit",
             "args": [
                 "run",
-                "${workspaceFolder}/grid_strategy_streamlit/src/app.py"
+                "${workspaceFolder}/grid_strategy_streamlit/src/views/app.py"
             ],
             "justMyCode": false,
             "env": {
