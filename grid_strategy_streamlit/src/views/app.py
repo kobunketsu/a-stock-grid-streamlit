@@ -254,12 +254,28 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
             'profit_calc_method': st.session_state.get('profit_calc_method', 'mean')
         }
         print(f"[DEBUG] Saved config: {st.session_state['saved_config']}")
+        
+        # 如果是移动端，设置滚动标志
+        if st.session_state.get('is_mobile', False):
+            st.session_state['scroll_to_top'] = True
+            print("[DEBUG] Set scroll_to_top flag for mobile")
     elif 'optimization_results' not in st.session_state:
         print("[DEBUG] No results to display")
         return
     
     # 在结果列中显示优化结果
     with results_col:
+        # 如果是移动端且需要滚动到顶部
+        if st.session_state.get('is_mobile', False) and st.session_state.get('scroll_to_top', False):
+            print("[DEBUG] Adding scroll to top script")
+            results_col.markdown("""
+                <script>
+                    window.scrollTo(0, 0);
+                </script>
+                """, unsafe_allow_html=True)
+            st.session_state['scroll_to_top'] = False
+            print("[DEBUG] Reset scroll_to_top flag")
+        
         st.markdown(f"### {l('optimization_results')}")
         print("[DEBUG] Filtering valid trials")
         # 获取前N个结果并过滤掉收益率<=0的结果
@@ -665,20 +681,25 @@ def update_segment_days(min_buy_times: int) -> str:
         return ""
 
 def main():
-    """
-    Main function for the Streamlit app
-    """
+    """主函数"""
     try:
         print("[DEBUG] Starting main function")
         st.set_page_config(
             page_title=l("app_title"),
             page_icon="📈",
-            layout="wide"
+            layout="wide",
+            initial_sidebar_state="expanded"  # 设置侧边栏默认展开
         )
+        
+        # 检测是否为移动端（通过session_state管理）
+        if 'is_mobile' not in st.session_state:
+            st.session_state['is_mobile'] = False  # 默认为桌面端
+            print(f"[DEBUG] Set default device type: desktop")
         
         # 初始化优化控制状态
         if 'optimization_running' not in st.session_state:
             st.session_state.optimization_running = False
+            print("[DEBUG] Initialized optimization_running state")
         
         # 加载外部CSS文件
         css_path = os.path.join(ROOT_DIR, "static", "css", "main.css")
@@ -697,49 +718,60 @@ def main():
         st.session_state['details_col'] = details_col
         
         print("[DEBUG] Starting parameter input section")
-        # Left column - Parameters
-        with params_col:
+        
+        # 创建参数输入区域
+        with st.sidebar:
             try:
-                # 检查是否需要通过股票名称更新股票代码
-                symbol_name_input = st.session_state.get("symbol_name_input", "")
-                last_symbol_name = st.session_state.get("last_symbol_name", "")
-                print(f"[DEBUG] Checking symbol name update - current: {symbol_name_input}, last: {last_symbol_name}")
-                
-                if symbol_name_input and symbol_name_input != last_symbol_name:
-                    print(f"[DEBUG] Symbol name changed from {last_symbol_name} to {symbol_name_input}")
-                    # 通过名称获取代码
-                    symbol_code, security_type = get_symbol_by_name(symbol_name_input)
-                    print(f"[DEBUG] Got symbol code: {symbol_code}, type: {security_type}")
-                    
-                    if symbol_code:
-                        # 更新session state
-                        st.session_state["internal_symbol"] = symbol_code
-                        print(f"[DEBUG] Updated internal_symbol to: {symbol_code}")
+                print("[DEBUG] Creating parameter input section")
+                # Left column - Parameters
+                with params_col:
+                    try:
+                        # 检查是否需要通过股票名称更新股票代码
+                        symbol_name_input = st.session_state.get("symbol_name_input", "")
+                        last_symbol_name = st.session_state.get("last_symbol_name", "")
+                        print(f"[DEBUG] Checking symbol name update - current: {symbol_name_input}, last: {last_symbol_name}")
                         
-                        # 获取股票信息
-                        name, security_type = get_symbol_info(symbol_code)
-                        print(f"[DEBUG] Got symbol info - name: {name}")
-                        
-                        if name:
-                            st.session_state["symbol_name"] = name
-                            st.session_state["last_symbol_name"] = name
+                        if symbol_name_input and symbol_name_input != last_symbol_name:
+                            print(f"[DEBUG] Symbol name changed from {last_symbol_name} to {symbol_name_input}")
+                            # 通过名称获取代码
+                            symbol_code, security_type = get_symbol_by_name(symbol_name_input)
+                            print(f"[DEBUG] Got symbol code: {symbol_code}, type: {security_type}")
                             
-                            # 获取价格区间
-                            end_date = datetime.now()
-                            start_date = end_date - timedelta(days=30)
-                            price_range = calculate_price_range(
-                                symbol_code,
-                                start_date.strftime("%Y-%m-%d"),
-                                end_date.strftime("%Y-%m-%d"),
-                                security_type
-                            )
-                            print(f"[DEBUG] Got price range: {price_range}")
-                            
-                            if price_range[0] is not None:
-                                st.session_state["price_range_min"] = price_range[0]
-                                st.session_state["price_range_max"] = price_range[1]
-                                print(f"[DEBUG] Updated session state with price range: {price_range}")
+                            if symbol_code:
+                                # 更新session state
+                                st.session_state["internal_symbol"] = symbol_code
+                                print(f"[DEBUG] Updated internal_symbol to: {symbol_code}")
+                                
+                                # 获取股票信息
+                                name, security_type = get_symbol_info(symbol_code)
+                                print(f"[DEBUG] Got symbol info - name: {name}")
+                                
+                                if name:
+                                    st.session_state["symbol_name"] = name
+                                    st.session_state["last_symbol_name"] = name
+                                    
+                                    # 获取价格区间
+                                    end_date = datetime.now()
+                                    start_date = end_date - timedelta(days=30)
+                                    price_range = calculate_price_range(
+                                        symbol_code,
+                                        start_date.strftime("%Y-%m-%d"),
+                                        end_date.strftime("%Y-%m-%d"),
+                                        security_type
+                                    )
+                                    print(f"[DEBUG] Got price range: {price_range}")
+                                    
+                                    if price_range[0] is not None:
+                                        st.session_state["price_range_min"] = price_range[0]
+                                        st.session_state["price_range_max"] = price_range[1]
+                                        print(f"[DEBUG] Updated session state with price range: {price_range}")
 
+                    except Exception as e:
+                        print(f"[ERROR] Error in parameter input section: {str(e)}")
+                        import traceback
+                        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+                        st.error(f"发生错误: {str(e)}")
+                
                 # 添加一个空白占位来避免被header覆盖
                 st.markdown("<div style='height: 3rem;'></div>", unsafe_allow_html=True)
                                 

@@ -599,6 +599,68 @@ class TestApp(unittest.TestCase):
                 use_container_width=True,
                 disabled=True
             )
+    
+    @patch('streamlit.session_state', new_callable=dict)
+    @patch('streamlit.button')
+    @patch('streamlit.expander')
+    @patch('streamlit.columns')
+    def test_mobile_optimization_scroll(self, mock_columns, mock_expander, mock_button, mock_session_state):
+        """测试移动端优化结果滚动功能
+        
+        测试场景：
+        1. 移动端优化完成：
+           - 模拟优化完成状态
+           - 验证结果列滚动到顶部
+           - 验证session_state更新
+        """
+        # 模拟优化结果数据
+        mock_trial = MagicMock(
+            value=-2.5,
+            params={
+                'up_sell_rate': 0.02,
+                'down_buy_rate': 0.015,
+                'up_callback_rate': 0.003,
+                'down_rebound_rate': 0.002,
+                'shares_per_trade': 5000
+            },
+            user_attrs={'trade_count': 50, 'failed_trades': '{}'}
+        )
+        mock_results = {'sorted_trials': [mock_trial]}
+
+        # 模拟列对象
+        mock_results_col = MagicMock()
+        mock_details_col = MagicMock()
+        mock_columns.return_value = [mock_results_col, mock_details_col]
+
+        # 模拟列对象的上下文管理器
+        mock_results_col.__enter__ = MagicMock(return_value=mock_results_col)
+        mock_results_col.__exit__ = MagicMock(return_value=None)
+        mock_details_col.__enter__ = MagicMock(return_value=mock_details_col)
+        mock_details_col.__exit__ = MagicMock(return_value=None)
+
+        # 设置session state
+        mock_session_state.clear()
+        mock_session_state['results_col'] = mock_results_col
+        mock_session_state['details_col'] = mock_details_col
+        mock_session_state['new_results'] = True
+        mock_session_state['optimization_results'] = mock_results
+        mock_session_state['sorted_trials'] = [mock_trial]
+        mock_session_state['is_mobile'] = True  # 设置为移动端
+        mock_session_state['optimization_running'] = False  # 优化已完成
+
+        # 调用显示函数
+        display_optimization_results(mock_results, top_n=5)
+
+        # 验证滚动脚本被添加
+        self.assertTrue(mock_results_col.markdown.called)
+        mock_results_col.markdown.assert_any_call(
+            """
+                <script>
+                    window.scrollTo(0, 0);
+                </script>
+                """,
+            unsafe_allow_html=True
+        )
 
 
 if __name__ == '__main__':

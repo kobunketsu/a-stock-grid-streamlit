@@ -6,6 +6,20 @@
     color: #8e8e8e;
 }
 
+/* Sidebar样式 */
+section[data-testid="stSidebar"] {
+    width: 450px !important;
+    min-width: 450px !important;
+}
+
+@media (max-width: 768px) {
+    section[data-testid="stSidebar"] {
+        width: calc(100% - 2rem) !important;
+        min-width: calc(100% - 2rem) !important;
+        margin-right: 2rem !important;
+    }
+}
+
 /* 标签样式：去掉强制100%高度，让标签自然撑开 */
 .stMarkdown, 
 .stMarkdown > div,
