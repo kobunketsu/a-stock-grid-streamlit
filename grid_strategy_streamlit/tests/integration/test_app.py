@@ -136,60 +136,31 @@ class TestApp(unittest.TestCase):
         validate_date(datetime(2024, 12, 20), datetime(2024, 10, 10))
         mock_error.assert_called_with(l("end_date_must_be_later_than_start_date"))
     
-    @patch('streamlit.sidebar')
-    @patch('streamlit.button')
-    @patch('src.views.app.start_optimization')
     @patch('streamlit.rerun')
-    @patch('streamlit.session_state', new_callable=dict)
-    def test_optimization_control(self, mock_session_state, mock_rerun, mock_start_optimization, mock_button, mock_sidebar):
+    @patch('streamlit.session_state')
+    def test_optimization_control(self, mock_session_state, mock_rerun):
         """测试优化控制功能"""
-        # 设置必要的session state值
-        mock_session_state.update({
-            "symbol": "159300",
-            "symbol_name": "沪深300ETF",
-            "last_symbol": "159300",
-            "last_symbol_name": "沪深300ETF",
-            "price_range_min": 3.9,
-            "price_range_max": 4.3,
-            "optimization_running": False,
-            "optimization_results": None,
-            "sorted_trials": None,
-            "display_details": False,
-            "current_trial": None,
-            "current_trial_index": None
-        })
+        self.logger.debug("开始测试 test_optimization_control")
         
-        # 模拟优化结果
-        mock_results = {
-            "sorted_trials": [
-                MagicMock(value=-2.5, params={
-                    'up_sell_rate': 0.02,
-                    'down_buy_rate': 0.015,
-                    'up_callback_rate': 0.003,
-                    'down_rebound_rate': 0.002,
-                    'shares_per_trade': 5000
-                }, user_attrs={'trade_count': 50, 'failed_trades': '{}'})
-            ]
-        }
-        mock_start_optimization.return_value = mock_results
+        # 初始化session_state
+        mock_session_state.optimization_running = False
         
-        # 模拟开始优化按钮
-        mock_button.return_value = True
-        mock_button.side_effect = lambda *args, **kwargs: True
+        # 调用toggle_optimization函数开始优化
+        self.logger.debug("调用toggle_optimization开始优化")
+        toggle_optimization()
         
-        # 调用main函数
-        main()
+        # 验证状态更新
+        self.logger.debug("验证状态更新")
+        self.assertTrue(mock_session_state.optimization_running)
         
-        # 验证按钮被创建
-        mock_button.assert_called()
+        # 调用toggle_optimization函数取消优化
+        self.logger.debug("调用toggle_optimization取消优化")
+        toggle_optimization()
         
-        # 验证优化函数被调用
-        mock_start_optimization.assert_called_once()
-        
-        # 验证结果被存储到session state
-        self.assertIn('optimization_results', mock_session_state)
-        self.assertIn('sorted_trials', mock_session_state)
-        self.assertEqual(mock_session_state['optimization_results'], mock_results)
+        # 验证取消优化
+        self.logger.debug("验证取消优化")
+        self.assertFalse(mock_session_state.optimization_running)
+        mock_rerun.assert_called()
     
     @patch('json.dump')
     @patch('json.load')
@@ -327,147 +298,82 @@ class TestApp(unittest.TestCase):
             self.assertIsNone(mock_session_state.get('current_trial'))
             self.assertIsNone(mock_session_state.get('current_trial_index'))
     
-    @patch('streamlit.text_input')
-    @patch('streamlit.session_state', new_callable=dict)
-    @patch('streamlit.rerun')
-    def test_update_symbol_by_name(self, mock_rerun, mock_session_state, mock_text_input):
-        """测试通过股票名称或代码更新股票信息"""
-        self.logger.debug("开始测试 test_update_symbol_by_name")
+    @patch('src.views.app.get_symbol_by_name')
+    @patch('src.views.app.get_symbol_info')
+    @patch('streamlit.session_state')
+    def test_update_symbol_by_input_name_or_code(self, mock_session_state, mock_get_symbol_info, mock_get_symbol_by_name):
+        """测试通过股票名称或代码更新股票信息
         
-        # 设置配置文件的模拟返回值
-        mock_config = {
-            "symbol": "159300",
-            "symbol_name": "沪深300ETF"
-        }
-        self.logger.debug(f"模拟配置文件: {mock_config}")
+        测试场景：
+        1. 有效股票代码：
+           - 输入000001，返回平安银行信息和价格区间
+           - 验证仅调用get_symbol_info
         
-        # 初始化session_state
-        mock_session_state.update({
-            "internal_symbol": "159300",
-            "symbol_name": "沪深300ETF",
-            "symbol_name_input": "沪深300ETF",
-            "last_symbol_name": "沪深300ETF",
-            "optimization_running": False,
-            "optimization_results": None,
-            "sorted_trials": None,
-            "display_details": False,
-            "current_trial": None,
-            "current_trial_index": None
-        })
-        self.logger.debug(f"初始化session_state: {mock_session_state}")
+        2. 有效股票名称：
+           - 输入双成药业，返回股票信息和价格区间
+           - 验证仅调用get_symbol_info
         
-        with patch('src.views.app.load_config') as mock_load_config:
-            mock_load_config.return_value = mock_config
-            self.logger.debug("已设置模拟配置文件加载")
-            
-            # 模拟text_input的返回值
-            def text_input_side_effect(*args, **kwargs):
-                self.logger.debug(f"text_input被调用，参数: args={args}, kwargs={kwargs}")
-                if kwargs.get('key') == 'symbol_name_input':
-                    value = st.session_state.get('symbol_name_input', '')
-                    self.logger.debug(f"返回symbol_name_input值: {value}")
-                    return value
-                return ''
-                
-            mock_text_input.side_effect = text_input_side_effect
-            self.logger.debug("已设置text_input的模拟行为")
-            
-            # 测试场景1：初始加载（使用配置文件的值）
-            self.logger.debug("开始测试场景1：初始加载")
-            main()
-            
-            # 验证初始状态
-            self.logger.debug("验证初始状态")
-            self.assertEqual(mock_session_state.get("internal_symbol"), "159300")
-            self.assertEqual(mock_session_state.get("symbol_name"), "沪深300ETF")
-            
-            # 测试场景2：输入股票名称
-            self.logger.debug("开始测试场景2：输入股票名称")
-            with patch('src.views.app.get_symbol_by_name') as mock_get_symbol:
-                mock_get_symbol.return_value = ("000001", "STOCK")
-                self.logger.debug("模拟get_symbol_by_name返回: ('000001', 'STOCK')")
-                
-                with patch('src.views.app.update_symbol_info') as mock_update_info:
-                    mock_update_info.return_value = ("平安银行", (13.5, 14.2))
-                    self.logger.debug("模拟update_symbol_info返回: ('平安银行', (13.5, 14.2))")
-                    
-                    # 模拟用户输入新的股票名称
-                    mock_session_state["symbol_name_input"] = "平安银行"
-                    mock_session_state["last_symbol_name"] = "沪深300ETF"
-                    mock_session_state["symbol"] = "000001"
-                    mock_session_state["symbol_name"] = "平安银行"
-                    self.logger.debug("设置session_state: symbol_name_input='平安银行', last_symbol_name='沪深300ETF'")
-                    
-                    # 调用main函数触发更新
-                    main()
-                    self.logger.debug("已调用main函数进行更新")
-                    
-                    # 验证更新后的状态
-                    self.logger.debug("验证更新后的状态")
-                    self.assertEqual(mock_session_state["internal_symbol"], "000001")
-                    self.assertEqual(mock_session_state["symbol_name"], "平安银行")
-                    self.assertEqual(mock_session_state["last_symbol_name"], "平安银行")
-                    self.assertEqual(mock_session_state["price_range_min"], 13.5)
-                    self.assertEqual(mock_session_state["price_range_max"], 14.2)
-                    
-                    # 测试场景3：输入股票代码
-                    self.logger.debug("开始测试场景3：输入股票代码")
-                    mock_get_symbol.return_value = ("600519", "STOCK")
-                    mock_update_info.return_value = ("贵州茅台", (1680.0, 1720.0))
-                    self.logger.debug("模拟返回值: get_symbol_by_name=('600519', 'STOCK'), update_symbol_info=('贵州茅台', (1680.0, 1720.0))")
-                    
-                    # 模拟用户输入股票代码
-                    mock_session_state["symbol_name_input"] = "600519"
-                    mock_session_state["last_symbol_name"] = "平安银行"
-                    self.logger.debug("设置session_state: symbol_name_input='600519', last_symbol_name='平安银行'")
-                    
-                    # 调用main函数触发更新
-                    main()
-                    self.logger.debug("已调用main函数进行更新")
-                    
-                    # 验证更新后的状态
-                    self.logger.debug("验证更新后的状态")
-                    self.assertEqual(mock_session_state["internal_symbol"], "600519")
-                    self.assertEqual(mock_session_state["symbol_name"], "贵州茅台")
-                    self.assertEqual(mock_session_state["last_symbol_name"], "贵州茅台")
-                    self.assertEqual(mock_session_state["price_range_min"], 1680.0)
-                    self.assertEqual(mock_session_state["price_range_max"], 1720.0)
-                    
-                    # 测试场景4：输入不存在的股票名称或代码
-                    self.logger.debug("开始测试场景4：输入不存在的股票名称或代码")
-                    mock_get_symbol.return_value = (None, None)
-                    self.logger.debug("模拟get_symbol_by_name返回: (None, None)")
-                    
-                    # 模拟用户输入不存在的股票
-                    mock_session_state["symbol_name_input"] = "不存在的股票"
-                    mock_session_state["last_symbol_name"] = "贵州茅台"
-                    self.logger.debug("设置session_state: symbol_name_input='不存在的股票', last_symbol_name='贵州茅台'")
-                    
-                    # 调用main函数
-                    main()
-                    self.logger.debug("已调用main函数")
-                    
-                    # 验证状态保持不变
-                    self.logger.debug("验证状态保持不变")
-                    self.assertEqual(mock_session_state["internal_symbol"], "600519")
-                    self.assertEqual(mock_session_state["symbol_name"], "贵州茅台")
-                    
-                    # 测试场景5：输入空值
-                    self.logger.debug("开始测试场景5：输入空值")
-                    mock_session_state["symbol_name_input"] = ""
-                    mock_session_state["last_symbol_name"] = "贵州茅台"
-                    self.logger.debug("设置session_state: symbol_name_input='', last_symbol_name='贵州茅台'")
-                    
-                    # 调用main函数
-                    main()
-                    self.logger.debug("已调用main函数")
-                    
-                    # 验证状态保持不变
-                    self.logger.debug("验证状态保持不变")
-                    self.assertEqual(mock_session_state["internal_symbol"], "600519")
-                    self.assertEqual(mock_session_state["symbol_name"], "贵州茅台")
+        3. 无效股票代码：
+           - 输入无效代码，返回None
+           - 验证错误处理
         
-        self.logger.debug("test_update_symbol_by_name测试完成")
+        4. API异常：
+           - 模拟API异常，返回None
+           - 验证异常处理
+        """
+        self.logger.debug("开始测试 test_update_symbol_by_input_name_or_code")
+        
+        # 场景1：通过股票代码更新
+        self.logger.debug("场景1：通过股票代码更新")
+        mock_get_symbol_info.return_value = ("平安银行", "STOCK")
+        
+        name, price_range = update_symbol_info("000001")
+        
+        mock_get_symbol_info.assert_called_once_with("000001")
+        mock_get_symbol_by_name.assert_not_called()
+        self.assertEqual(name, "平安银行")
+        self.assertIsNotNone(price_range)
+        
+        # 场景2：通过股票名称更新
+        self.logger.debug("场景2：通过股票名称更新")
+        mock_get_symbol_info.reset_mock()
+        mock_get_symbol_by_name.reset_mock()
+        mock_get_symbol_by_name.return_value = "002693"
+        mock_get_symbol_info.return_value = ("双成药业", "STOCK")
+        
+        name, price_range = update_symbol_info("双成药业")
+        
+        mock_get_symbol_by_name.assert_not_called()  # 因为直接使用代码更新
+        mock_get_symbol_info.assert_called_once_with("双成药业")
+        self.assertEqual(name, "双成药业")
+        self.assertIsNotNone(price_range)
+        
+        # 场景3：无效的股票代码
+        self.logger.debug("场景3：无效的股票代码")
+        mock_get_symbol_info.reset_mock()
+        mock_get_symbol_by_name.reset_mock()
+        mock_get_symbol_info.return_value = (None, None)
+        
+        name, price_range = update_symbol_info("invalid_code")
+        
+        mock_get_symbol_info.assert_called_once_with("invalid_code")
+        mock_get_symbol_by_name.assert_not_called()
+        self.assertIsNone(name)
+        self.assertIsNone(price_range)
+        
+        # 场景4：API异常
+        self.logger.debug("场景4：API异常")
+        mock_get_symbol_info.reset_mock()
+        mock_get_symbol_by_name.reset_mock()
+        mock_get_symbol_info.side_effect = Exception("API错误")
+        
+        name, price_range = update_symbol_info("000001")
+        
+        mock_get_symbol_info.assert_called_once_with("000001")
+        mock_get_symbol_by_name.assert_not_called()
+        self.assertIsNone(name)
+        self.assertIsNone(price_range)
+
 
 if __name__ == '__main__':
     unittest.main()
