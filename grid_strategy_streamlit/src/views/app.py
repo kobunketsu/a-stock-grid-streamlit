@@ -836,9 +836,6 @@ def main():
                         print(f"[ERROR] Stack trace: {traceback.format_exc()}")
                         st.error(f"发生错误: {str(e)}")
                 
-                # 添加一个空白占位来避免被header覆盖
-                st.markdown("<div style='height: 3rem;'></div>", unsafe_allow_html=True)
-                                
                 # 使用container来添加一些上下边距
                 with st.container():
                     st.markdown("### " + l("param_settings"))

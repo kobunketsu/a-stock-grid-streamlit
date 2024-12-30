@@ -12,6 +12,26 @@ section[data-testid="stSidebar"] {
     min-width: 450px !important;
 }
 
+/* Sidebar内容样式 */
+section[data-testid="stSidebar"] > div {
+    padding-top: 0 !important;
+}
+
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 0 !important;
+}
+
+/* Sidebar header样式 */
+section[data-testid="stSidebar"] header {
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    margin: 0 !important;
+}
+
+section[data-testid="stSidebar"] header a {
+    margin-left: 0.5rem !important;
+}
+
 /* Sidebar收起按钮样式 */
 section[data-testid="stSidebar"] [data-testid="collapsedControl"] {
     left: 0 !important;
