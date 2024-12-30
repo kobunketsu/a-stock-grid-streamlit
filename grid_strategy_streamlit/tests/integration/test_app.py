@@ -611,6 +611,7 @@ class TestApp(unittest.TestCase):
         1. 移动端优化完成：
            - 模拟优化完成状态
            - 验证结果列滚动到顶部
+           - 验证sidebar自动收起
            - 验证session_state更新
         """
         # 模拟优化结果数据
@@ -653,14 +654,18 @@ class TestApp(unittest.TestCase):
 
         # 验证滚动脚本被添加
         self.assertTrue(mock_results_col.markdown.called)
-        mock_results_col.markdown.assert_any_call(
-            """
-                <script>
-                    window.scrollTo(0, 0);
-                </script>
-                """,
-            unsafe_allow_html=True
-        )
+        
+        # 获取实际调用的参数
+        actual_call = mock_results_col.markdown.call_args
+        actual_script = actual_call[0][0]
+        actual_kwargs = actual_call[1]
+        
+        # 验证关键部分
+        self.assertIn('window.scrollTo(0, 0)', actual_script)
+        self.assertIn('const sidebar = document.querySelector(\'section[data-testid="stSidebar"]\')', actual_script)
+        self.assertIn('button[aria-label="Close sidebar"]', actual_script)
+        self.assertIn('div[data-testid="collapsedControl"]', actual_script)
+        self.assertTrue(actual_kwargs.get('unsafe_allow_html', False))
 
 
 if __name__ == '__main__':

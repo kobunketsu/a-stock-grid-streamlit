@@ -7,21 +7,22 @@ import pandas as pd
 import sys
 from typing import Dict, Optional, Tuple, Any
 
+# 获取项目根目录的路径
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(ROOT_DIR)
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# 获取项目根目录的路径
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(ROOT_DIR)
-
 # 配置文件路径
 CONFIG_FILE = os.path.join(ROOT_DIR, "resources", "data", "grid_strategy_config.json")
 
 # 导入本地化函数并初始化
 from src.utils.localization import l, load_translations
+from src.utils.browser_utils import get_user_agent
 load_translations()  # 确保在使用前初始化翻译
 
 # 其他导入
@@ -29,6 +30,9 @@ from src.services.business.grid_strategy import GridStrategy
 from src.services.business.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol, get_symbol_by_name
 import optuna
 from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
+
+# 给 st 添加获取用户代理的方法
+st.get_user_agent = get_user_agent
 
 def display_strategy_details(strategy_params):
     """
@@ -268,11 +272,43 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
         # 如果是移动端且需要滚动到顶部
         if st.session_state.get('is_mobile', False) and st.session_state.get('scroll_to_top', False):
             print("[DEBUG] Adding scroll to top script")
+            st.write("[DEBUG] 准备执行sidebar收起操作")
             results_col.markdown("""
                 <script>
+                    // 发送开始消息
+                    fetch('/_stcore/upload', {
+                        method: 'POST',
+                        body: JSON.stringify({type: 'debug', message: '开始尝试收起sidebar'})
+                    });
+                    
                     window.scrollTo(0, 0);
+                    // 收起sidebar
+                    const sidebar = document.querySelector('section[data-testid="stSidebar"]');
+                    if (sidebar) {
+                        const button = sidebar.querySelector('button[aria-label="Close sidebar"]');
+                        if (!button) {
+                            // 如果找不到关闭按钮，尝试查找展开按钮的父元素并点击
+                            const expanderDiv = sidebar.querySelector('div[data-testid="collapsedControl"]');
+                            if (expanderDiv) {
+                                expanderDiv.click();
+                                // 发送成功消息
+                                fetch('/_stcore/upload', {
+                                    method: 'POST',
+                                    body: JSON.stringify({type: 'debug', message: '成功点击展开按钮父元素'})
+                                });
+                            }
+                        } else {
+                            button.click();
+                            // 发送成功消息
+                            fetch('/_stcore/upload', {
+                                method: 'POST',
+                                body: JSON.stringify({type: 'debug', message: '成功点击关闭按钮'})
+                            });
+                        }
+                    }
                 </script>
                 """, unsafe_allow_html=True)
+            st.write("[DEBUG] sidebar收起操作执行完成")
             st.session_state['scroll_to_top'] = False
             print("[DEBUG] Reset scroll_to_top flag")
         
@@ -680,6 +716,27 @@ def update_segment_days(min_buy_times: int) -> str:
         logging.error(f"计算分段天数失败: {str(e)}")
         return ""
 
+def detect_mobile():
+    """检测是否为移动设备"""
+    try:
+        # 获取用户代理字符串
+        user_agent = st.get_user_agent()
+        print(f"[DEBUG] User Agent: {user_agent}")
+        
+        # 检查是否为移动设备
+        is_mobile = any(device in user_agent.lower() for device in [
+            'iphone', 'ipod', 'ipad', 'android', 'mobile', 'blackberry', 
+            'webos', 'incognito', 'webmate', 'bada', 'nokia', 'midp', 
+            'phone', 'opera mobi', 'opera mini'
+        ])
+        
+        print(f"[DEBUG] Device detection - is_mobile: {is_mobile}")
+        return is_mobile
+        
+    except Exception as e:
+        print(f"[ERROR] Error detecting mobile device: {str(e)}")
+        return False
+
 def main():
     """主函数"""
     try:
@@ -688,13 +745,20 @@ def main():
             page_title=l("app_title"),
             page_icon="📈",
             layout="wide",
-            initial_sidebar_state="expanded"  # 设置侧边栏默认展开
+            initial_sidebar_state="expanded"
         )
         
-        # 检测是否为移动端（通过session_state管理）
+        # 检测设备类型
         if 'is_mobile' not in st.session_state:
-            st.session_state['is_mobile'] = False  # 默认为桌面端
-            print(f"[DEBUG] Set default device type: desktop")
+            st.session_state['is_mobile'] = detect_mobile()
+            print(f"[DEBUG] Initial device detection: {st.session_state['is_mobile']}")
+        
+        # 每次运行时重新检测设备类型（因为用户可能在运行时切换设备模式）
+        current_is_mobile = detect_mobile()
+        if current_is_mobile != st.session_state['is_mobile']:
+            print(f"[DEBUG] Device type changed: {st.session_state['is_mobile']} -> {current_is_mobile}")
+            st.session_state['is_mobile'] = current_is_mobile
+            st.rerun()  # 重新运行以应用新的布局
         
         # 初始化优化控制状态
         if 'optimization_running' not in st.session_state:
