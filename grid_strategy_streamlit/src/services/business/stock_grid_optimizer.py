@@ -7,9 +7,10 @@ from src.services.business.grid_strategy import GridStrategy  # 导入GridStrate
 import akshare as ak
 import threading
 import io
+import traceback
 from contextlib import redirect_stdout
 from src.services.business.segment_utils import build_segments, BATCH_TO_DAYS_MAP
-
+from src.utils.localization import l
 class GridStrategyOptimizer:
     """
     网格交易策略优化器
@@ -68,13 +69,21 @@ class GridStrategyOptimizer:
                  end_date: datetime = datetime(2024, 12, 20),
                  security_type: str = "ETF",  # 新增参数：证券类型
                  ma_period: int = None,
-        ma_protection: bool = False,
+                 ma_protection: bool = False,
                  initial_positions: int = 50000,
                  initial_cash: int = 50000,
                  min_buy_times: int = 2,  # 默认2次
                  price_range: tuple = (0.910, 1.010),
                  profit_calc_method: str = "mean",  # 新增：收益计算方法
                  connect_segments: bool = False):  # 新增：是否衔接资金和持仓
+        
+        print("[DEBUG] Initializing GridStrategyOptimizer")
+        print(f"[DEBUG] Input parameters: symbol={symbol}, start_date={start_date}, end_date={end_date}")
+        print(f"[DEBUG] Security type: {security_type}, MA period: {ma_period}, MA protection: {ma_protection}")
+        
+        # 初始化优化控制状态
+        self.optimization_running = True
+        print("[DEBUG] Initial optimization_running state: True")
         
         # 先初始化基本参数
         self.start_date = start_date
@@ -279,7 +288,7 @@ class GridStrategyOptimizer:
         """
         计算开始时间的均线价格
         @param ma_period: 均线周期
-        @return: ��算得到的均线价格，失败时返回None
+        @return: 计算得到的均线价格，失败时返回None
         """
         try:
             start_date_str = (self.start_date - timedelta(days=ma_period*2)).strftime('%Y%m%d')
@@ -309,7 +318,8 @@ class GridStrategyOptimizer:
             df['MA'] = df['收盘'].rolling(window=ma_period).mean()
             
             # 获取开始日期的收盘价和均线价格
-            start_date_data = df.loc[df.index <= self.start_date].iloc[-1]
+            target_date = pd.to_datetime(self.start_date)
+            start_date_data = df.loc[df.index <= target_date].iloc[-1]
             close_price = start_date_data['收盘']
             ma_price = start_date_data['MA']
             
@@ -324,6 +334,7 @@ class GridStrategyOptimizer:
             
         except Exception as e:
             print(f"计算均线价格时发生错误: {e}")
+            print(f"Stack trace: {traceback.format_exc()}")
             return None
 
     def _update_price_range_with_ma(self, price_data: Tuple[float, float]) -> None:
@@ -540,25 +551,45 @@ class GridStrategyOptimizer:
         """
         分阶段执行参数优化
         """
-        total_trials = n_trials * 1.5  # 总��验次数（包括两个阶段）
+        print(f"[DEBUG] Starting optimization with {n_trials} trials")
+        print(f"[DEBUG] Current optimization_running state: {self.optimization_running}")
+        
+        total_trials = n_trials * 1.5  # 总试验次数（包括两个阶段）
         current_trial = 0
 
         def callback(study, trial):
-            if self.progress_window:
-                try:
-                    nonlocal current_trial
-                    current_trial += 1
-                    # 检查是否需要取消优化
-                    if not self.progress_window.optimization_running:
-                        study.stop()  # 停止优化
-                        return
-                    # 计算总体进度
-                    self.progress_window.update_progress(current_trial)
-                except Exception as e:
-                    print(f"进度更新失败: {e}")
-                    study.stop()
+            try:
+                nonlocal current_trial
+                current_trial += 1
+                
+                # 检查是否需要取消优化
+                if not self.optimization_running:
+                    print("[DEBUG] Optimization cancelled in callback")
+                    print(f"[DEBUG] Current trial: {current_trial}, Total trials: {total_trials}")
+                    study.stop()  # 停止优化
+                    return
+                    
+                # 计算总体进度
+                if hasattr(self, 'progress_bar') and self.progress_bar is not None:
+                    progress = (current_trial / total_trials) * 100
+                    print(f"[DEBUG] Updating progress bar: {progress:.2f}%")
+                    self.progress_bar.progress(int(progress))
+                    
+                if hasattr(self, 'status_text') and self.status_text is not None:
+                    status_message = l("optimization_progress_format").format(
+                        current_trial,
+                        total_trials,
+                        -study.best_value if study.best_value is not None else 0
+                    )
+                    print(f"[DEBUG] Updating status text: {status_message}")
+                    self.status_text.text(status_message)
+            except Exception as e:
+                print(f"[ERROR] Progress update failed: {str(e)}")
+                print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+                study.stop()
         
         try:
+            print("[DEBUG] Starting phase 1: Rough search")
             # 第一阶段：粗略搜索
             study = optuna.create_study(
                 study_name="grid_strategy_optimization_phase1",
@@ -571,16 +602,24 @@ class GridStrategyOptimizer:
             )
             
             # 第一阶段优化
+            print("[DEBUG] Running phase 1 optimization")
             study.optimize(self.objective, n_trials=n_trials, callbacks=[callback])
             
             # 检查是否被取消
-            if self.progress_window and not self.progress_window.optimization_running:
+            if not self.optimization_running:
+                print("[DEBUG] Optimization cancelled after phase 1")
+                print(f"[DEBUG] Completed trials in phase 1: {len(study.trials)}")
                 return None
             
             # 获取第一阶段最佳参数周围的范围
             best_params = study.best_params
-            refined_ranges = self._get_refined_ranges(best_params)
+            print(f"[DEBUG] Phase 1 best parameters: {best_params}")
+            print(f"[DEBUG] Phase 1 best value: {study.best_value}")
             
+            refined_ranges = self._get_refined_ranges(best_params)
+            print(f"[DEBUG] Refined parameter ranges: {refined_ranges}")
+            
+            print("[DEBUG] Starting phase 2: Fine-tuning")
             # 第二阶段：精细搜索
             study_refined = optuna.create_study(
                 study_name="grid_strategy_optimization_phase2",
@@ -593,48 +632,72 @@ class GridStrategyOptimizer:
             )
             
             # 第二阶段优化
+            print("[DEBUG] Running phase 2 optimization")
             study_refined.optimize(
                 lambda trial: self._refined_objective(trial, refined_ranges), 
                 n_trials=n_trials//2,
                 callbacks=[callback]
             )
             
-            # 只在优化仍在运行时更新最终进度
-            if self.progress_window:
-                try:
-                    self.progress_window.update_progress(total_trials)
-                except Exception:
-                    pass
+            # 检查是否被取消
+            if not self.optimization_running:
+                print("[DEBUG] Optimization cancelled after phase 2")
+                print(f"[DEBUG] Completed trials in phase 2: {len(study_refined.trials)}")
+                return None
             
-            return {
+            print("[DEBUG] Optimization completed successfully")
+            # 只在优化仍在运行时更新最终进度
+            if hasattr(self, 'progress_bar') and self.progress_bar is not None:
+                print("[DEBUG] Setting final progress to 100%")
+                self.progress_bar.progress(100)
+            if hasattr(self, 'status_text') and self.status_text is not None:
+                print("[DEBUG] Setting completion status")
+                self.status_text.text(l("optimization_completed"))
+            
+            # 准备返回结果
+            results = {
                 "study": study,
                 "sorted_trials": sorted(study.trials, key=lambda t: t.value)  # 按收益率排序
             }
+            print(f"[DEBUG] Total trials completed: {len(study.trials)}")
+            print(f"[DEBUG] Best value achieved: {study.best_value}")
+            return results
             
         except Exception as e:
-            print(f"优化过程发生错误: {e}")
+            print(f"[ERROR] Optimization process failed: {str(e)}")
+            print(f"[ERROR] Stack trace: {traceback.format_exc()}")
             return None
 
     def _get_refined_ranges(self, best_params):
         """
         根据最佳参数缩小搜索范围
         """
+        print("[DEBUG] Calculating refined parameter ranges")
+        print(f"[DEBUG] Best parameters input: {best_params}")
+        
         refined_ranges = {}
         for param, value in best_params.items():
             if param == "shares_per_trade":
                 # 整数参数特殊处理
+                min_value = max(int(value * 0.8), self.param_ranges[param]["min"])
+                max_value = min(int(value * 1.2), self.param_ranges[param]["max"])
                 refined_ranges[param] = {
-                    "min": max(int(value * 0.8), self.param_ranges[param]["min"]),
-                    "max": min(int(value * 1.2), self.param_ranges[param]["max"]),
+                    "min": min_value,
+                    "max": max_value,
                     "step": self.param_ranges[param]["step"]
                 }
+                print(f"[DEBUG] Refined range for {param}: min={min_value}, max={max_value}")
             else:
                 # 浮点数参数处理
+                min_value = max(value * 0.8, self.param_ranges[param]["min"])
+                max_value = min(value * 1.2, self.param_ranges[param]["max"])
                 refined_ranges[param] = {
-                    "min": max(value * 0.8, self.param_ranges[param]["min"]),
-                    "max": min(value * 1.2, self.param_ranges[param]["max"]),
+                    "min": min_value,
+                    "max": max_value,
                     "step": self.param_ranges[param]["step"]
                 }
+                print(f"[DEBUG] Refined range for {param}: min={min_value:.6f}, max={max_value:.6f}")
+        
         return refined_ranges
 
     def _refined_objective(self, trial: optuna.Trial, refined_ranges: Dict[str, Dict[str, float]]) -> float:
@@ -866,7 +929,7 @@ class GridStrategyOptimizer:
                     print(f"参数 {param_name} 的值 {value} 超出范围 [{param_range['min']}, {param_range['max']}]")
                     return False
             
-            # 验证��调率和反弹率是否小于主要比率
+            # 验证回调率和反弹率是否小于主要比率
             if params["up_callback_rate"] >= params["up_sell_rate"]:
                 print("上涨回调率必须小于上涨卖出率")
                 return False

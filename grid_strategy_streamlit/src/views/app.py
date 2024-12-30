@@ -608,28 +608,6 @@ def start_optimization(
     执行优化过程
     """
     try:
-        # 参数验证
-        if not validate_all_inputs(
-            symbol=symbol,
-            start_date=start_date,
-            end_date=end_date,
-            ma_period=ma_period,
-            initial_positions=initial_positions,
-            initial_cash=initial_cash,
-            min_buy_times=min_buy_times,
-            price_range_min=price_range_min,
-            price_range_max=price_range_max,
-            n_trials=n_trials,
-            top_n=top_n
-        ):
-            return None
-            
-        # 更新状态
-        if status_text:
-            status_text.text(l("initializing_optimization"))
-        if progress_bar:
-            progress_bar.progress(0)
-        
         # 创建优化器实例
         optimizer = GridStrategyOptimizer(
             symbol=symbol,
@@ -646,33 +624,20 @@ def start_optimization(
             connect_segments=connect_segments
         )
         
-        # 设置进度回调
-        def progress_callback(study, trial):
-            if progress_bar:
-                progress = (len(study.trials) / n_trials) * 100
-                progress_bar.progress(int(progress))
-            if status_text:
-                status_text.text(l("optimization_progress_format").format(
-                    len(study.trials),
-                    n_trials,
-                    -study.best_value if study.best_value is not None else 0
-                ))
+        # 设置进度条和状态文本
+        optimizer.progress_bar = progress_bar
+        optimizer.status_text = status_text
+        
+        # 存储优化器实例到session state
+        st.session_state.optimizer = optimizer
         
         # 运行优化
-        study = optuna.create_study(direction="minimize")
-        study.optimize(optimizer.objective, n_trials=n_trials, callbacks=[progress_callback])
+        results = optimizer.optimize(n_trials=n_trials)
         
-        # 整理结果
-        results = {
-            "study": study,
-            "sorted_trials": sorted(study.trials, key=lambda t: t.value)
-        }
-        
-        if status_text:
-            status_text.text(l("optimization_completed"))
-        if progress_bar:
-            progress_bar.progress(100)
-        
+        # 检查是否被取消
+        if not optimizer.optimization_running:
+            return None
+            
         return results
         
     except Exception as e:
@@ -704,13 +669,15 @@ def main():
             layout="wide"
         )
         
+        # 初始化优化控制状态
+        if 'optimization_running' not in st.session_state:
+            st.session_state.optimization_running = False
+        
         # 加载外部CSS文件
         css_path = os.path.join(ROOT_DIR, "static", "css", "main.css")
         with open(css_path) as f:
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-        
-        st.markdown("## " + l("app_title"))
-        
+                
         # Load configuration
         print("[DEBUG] Loading configuration")
         config = load_config()
@@ -765,7 +732,10 @@ def main():
                                 st.session_state["price_range_min"] = price_range[0]
                                 st.session_state["price_range_max"] = price_range[1]
                                 print(f"[DEBUG] Updated session state with price range: {price_range}")
-                
+
+                # 添加一个空白占位来避免被header覆盖
+                st.markdown("<div style='height: 3rem;'></div>", unsafe_allow_html=True)
+                                
                 # 使用container来添加一些上下边距
                 with st.container():
                     st.markdown("### " + l("param_settings"))
@@ -932,88 +902,99 @@ def main():
                         connect_segments = False
                     
                     # 开始按钮
-                    if st.button(l("start_optimization"), use_container_width=True):
+                    if st.button(
+                        l("cancel_optimization") if st.session_state.optimization_running else l("start_optimization"), 
+                        use_container_width=True
+                    ):
                         print("[DEBUG] Optimization button clicked")
-                        # 从session state获取symbol
-                        symbol = st.session_state.get("internal_symbol", "")
-                        if not symbol:
-                            st.error(l("please_input_valid_symbol"))
-                            return
-                            
-                        # Validate all inputs
-                        if not validate_all_inputs(
-                            symbol=symbol,
-                            start_date=start_date,
-                            end_date=end_date,
-                            ma_period=ma_period,
-                            initial_positions=initial_positions,
-                            initial_cash=initial_cash,
-                            min_buy_times=min_buy_times,
-                            price_range_min=price_range_min,
-                            price_range_max=price_range_max,
-                            n_trials=n_trials,
-                            top_n=top_n
-                        ):
-                            return
+                        toggle_optimization()
+                        st.rerun()  # 确保状态更新后重新运行
                         
-                        print("[DEBUG] Saving configuration")
-                        # Save configuration
-                        save_config({
-                            "symbol": symbol,
-                            "symbol_name": symbol_name,
-                            "start_date": start_date.strftime("%Y-%m-%d"),
-                            "end_date": end_date.strftime("%Y-%m-%d"),
-                            "ma_period": ma_period,
-                            "ma_protection": ma_protection,
-                            "initial_positions": initial_positions,
-                            "initial_cash": initial_cash,
-                            "min_buy_times": min_buy_times,
-                            "price_range_min": price_range_min,
-                            "price_range_max": price_range_max,
-                            "n_trials": n_trials,
-                            "top_n": top_n,
-                            "enable_segments": enable_segments,
-                            "profit_calc_method": profit_calc_method,
-                            "connect_segments": connect_segments
-                        })
-                        
-                        print("[DEBUG] Creating progress indicators")
-                        # 创建进度条和状态文本容器
+                    # 如果正在优化中，显示进度条
+                    if st.session_state.optimization_running:
                         with results_col:
                             progress_bar = st.progress(0)
                             status_text = st.empty()
-                        
-                        print("[DEBUG] Starting optimization")
-                        # Start optimization
-                        results = start_optimization(
-                            symbol=symbol,
-                            symbol_name=symbol_name,
-                            start_date=start_date,
-                            end_date=end_date,
-                            ma_period=ma_period,
-                            ma_protection=ma_protection,
-                            initial_positions=initial_positions,
-                            initial_cash=initial_cash,
-                            min_buy_times=min_buy_times,
-                            price_range_min=price_range_min,
-                            price_range_max=price_range_max,
-                            n_trials=n_trials,
-                            top_n=top_n,
-                            profit_calc_method=profit_calc_method,
-                            connect_segments=connect_segments,
-                            progress_bar=progress_bar,
-                            status_text=status_text
-                        )
-                        
-                        if results:
-                            print("[DEBUG] Optimization completed successfully")
-                            # Display optimization results
-                            st.session_state['new_results'] = True
-                            st.session_state['optimization_results'] = results
-                            st.rerun()
-                        else:
-                            print("[DEBUG] Optimization failed")
                             
+                            # 从session state获取symbol
+                            symbol = st.session_state.get("internal_symbol", "")
+                            if not symbol:
+                                st.error(l("please_input_valid_symbol"))
+                                return
+                                
+                            # Validate all inputs
+                            if not validate_all_inputs(
+                                symbol=symbol,
+                                start_date=start_date,
+                                end_date=end_date,
+                                ma_period=ma_period,
+                                initial_positions=initial_positions,
+                                initial_cash=initial_cash,
+                                min_buy_times=min_buy_times,
+                                price_range_min=price_range_min,
+                                price_range_max=price_range_max,
+                                n_trials=n_trials,
+                                top_n=top_n
+                            ):
+                                return
+                            
+                            print("[DEBUG] Saving configuration")
+                            # Save configuration
+                            save_config({
+                                "symbol": symbol,
+                                "symbol_name": symbol_name,
+                                "start_date": start_date.strftime("%Y-%m-%d"),
+                                "end_date": end_date.strftime("%Y-%m-%d"),
+                                "ma_period": ma_period,
+                                "ma_protection": ma_protection,
+                                "initial_positions": initial_positions,
+                                "initial_cash": initial_cash,
+                                "min_buy_times": min_buy_times,
+                                "price_range_min": price_range_min,
+                                "price_range_max": price_range_max,
+                                "n_trials": n_trials,
+                                "top_n": top_n,
+                                "enable_segments": enable_segments,
+                                "profit_calc_method": profit_calc_method,
+                                "connect_segments": connect_segments
+                            })
+                            
+                            print("[DEBUG] Starting optimization")
+                            # Start optimization
+                            results = start_optimization(
+                                symbol=symbol,
+                                symbol_name=symbol_name,
+                                start_date=start_date,
+                                end_date=end_date,
+                                ma_period=ma_period,
+                                ma_protection=ma_protection,
+                                initial_positions=initial_positions,
+                                initial_cash=initial_cash,
+                                min_buy_times=min_buy_times,
+                                price_range_min=price_range_min,
+                                price_range_max=price_range_max,
+                                n_trials=n_trials,
+                                top_n=top_n,
+                                profit_calc_method=profit_calc_method,
+                                connect_segments=connect_segments,
+                                progress_bar=progress_bar,
+                                status_text=status_text
+                            )
+                            
+                            if results:
+                                print("[DEBUG] Optimization completed successfully")
+                                # Display optimization results
+                                st.session_state['new_results'] = True
+                                st.session_state['optimization_results'] = results
+                                st.session_state.optimization_running = False
+                                st.rerun()
+                            else:
+                                print("[DEBUG] Optimization failed or was cancelled")
+                                if st.session_state.optimization_running:
+                                    cancel_optimization()
+                                else:
+                                    st.rerun()
+                
             except Exception as e:
                 print(f"[ERROR] Error in parameter input section: {str(e)}")
                 import traceback
@@ -1042,6 +1023,24 @@ def main():
         import traceback
         print(f"[ERROR] Stack trace: {traceback.format_exc()}")
         st.error(f"程序发生严重错误: {str(e)}")
+
+def toggle_optimization():
+    """切换优化状态（开始/取消）"""
+    if not st.session_state.optimization_running:
+        # 开始优化
+        st.session_state.optimization_running = True
+    else:
+        # 取消优化
+        cancel_optimization()
+
+def cancel_optimization():
+    """取消优化"""
+    st.session_state.optimization_running = False
+    if 'optimizer' in st.session_state:
+        optimizer = st.session_state.optimizer
+        optimizer.optimization_running = False
+        del st.session_state.optimizer
+    st.rerun()
 
 if __name__ == "__main__":
     try:
