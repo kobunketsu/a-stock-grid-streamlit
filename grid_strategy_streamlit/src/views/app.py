@@ -495,11 +495,15 @@ def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
 def validate_date(start_date: datetime, end_date: datetime) -> bool:
     """验证日期范围"""
     try:
+        print(f"[DEBUG] Validating date range - start_date: {start_date}, end_date: {end_date}")
         if start_date >= end_date:
+            print("[DEBUG] Date validation failed: end_date must be later than start_date")
             st.error(l("end_date_must_be_later_than_start_date"))
             return False
+        print("[DEBUG] Date validation passed")
         return True
     except Exception as e:
+        print(f"[ERROR] Date validation error: {str(e)}")
         st.error(l("date_validation_error_format").format(str(e)))
         return False
 
@@ -771,6 +775,9 @@ def main():
                             label="",
                             value=datetime.strptime(config.get("end_date", "2024-12-20"), "%Y-%m-%d")
                         )
+                    
+                    # 验证日期范围
+                    validate_date(start_date, end_date)
                     
                     # 策略参数
                     label_col, input_col = st.columns([1, 1])
