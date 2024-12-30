@@ -12,11 +12,23 @@ section[data-testid="stSidebar"] {
     min-width: 450px !important;
 }
 
+/* Sidebar收起按钮样式 */
+section[data-testid="stSidebar"] [data-testid="collapsedControl"] {
+    left: 0 !important;
+    background: white !important;
+}
+
 @media (max-width: 768px) {
     section[data-testid="stSidebar"] {
-        width: calc(100% - 2rem) !important;
-        min-width: calc(100% - 2rem) !important;
-        margin-right: 2rem !important;
+        width: calc(100%) !important;
+        min-width: calc(100%) !important;
+        margin-right: 0rem !important;
+        margin-left: 0rem !important;
+    }
+
+    section[data-testid="stSidebar"][aria-expanded="false"] {
+        margin-left: 0rem !important;
+        transform: translateX(-100%);
     }
 }
 
