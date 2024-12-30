@@ -7,16 +7,6 @@ import pandas as pd
 import sys
 from typing import Dict, Optional, Tuple, Any
 
-# 添加项目根目录到Python路径
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(ROOT_DIR)
-
-from src.services.business.grid_strategy import GridStrategy
-from src.services.business.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol
-import optuna
-from src.utils.localization import _
-from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
-
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +15,20 @@ logging.basicConfig(
 
 # 获取项目根目录的路径
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(ROOT_DIR)
+
+# 配置文件路径
 CONFIG_FILE = os.path.join(ROOT_DIR, "resources", "data", "grid_strategy_config.json")
+
+# 导入本地化函数并初始化
+from src.utils.localization import _, load_translations
+load_translations()  # 确保在使用前初始化翻译
+
+# 其他导入
+from src.services.business.grid_strategy import GridStrategy
+from src.services.business.trading_utils import get_symbol_info, calculate_price_range, is_valid_symbol, get_symbol_by_name
+import optuna
+from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
 
 def display_strategy_details(strategy_params):
     """
@@ -689,52 +692,6 @@ def update_segment_days(min_buy_times: int) -> str:
         logging.error(f"计算分段天数失败: {str(e)}")
         return ""
 
-def get_symbol_by_name(name_or_code: str) -> Tuple[str, str]:
-    """
-    通过股票名称或代码获取股票代码和类型
-    
-    Args:
-        name_or_code: 股票名称或代码
-        
-    Returns:
-        Tuple[str, str]: (股票代码, 股票类型)，如果未找到返回(None, None)
-    """
-    try:
-        print(f"[DEBUG] Getting symbol by name or code: {name_or_code}")
-        import akshare as ak
-        
-        # 获取A股股票代码和名称
-        stock_info_df = ak.stock_info_a_code_name()
-        print(f"[DEBUG] Got {len(stock_info_df)} stocks from A market")
-        
-        # 获取ETF基金代码和名称
-        etf_info_df = ak.fund_etf_category_sina()
-        print(f"[DEBUG] Got {len(etf_info_df)} ETFs from market")
-        
-        # 在A股中查找
-        stock_match = stock_info_df[(stock_info_df['name'] == name_or_code) | (stock_info_df['code'] == name_or_code)]
-        if not stock_match.empty:
-            code = stock_match.iloc[0]['code']
-            print(f"[DEBUG] Found stock: code={code}, name={stock_match.iloc[0]['name']}")
-            return code, "STOCK"
-            
-        # 在ETF中查找
-        etf_match = etf_info_df[(etf_info_df['基金名称'] == name_or_code) | (etf_info_df['代码'] == name_or_code)]
-        if not etf_match.empty:
-            code = etf_match.iloc[0]['代码']
-            print(f"[DEBUG] Found ETF: code={code}, name={etf_match.iloc[0]['基金名称']}")
-            return code, "ETF"
-            
-        print(f"[DEBUG] Symbol not found for name or code: {name_or_code}")
-        return None, None
-        
-    except Exception as e:
-        print(f"[ERROR] Error getting symbol by name or code: {str(e)}")
-        import traceback
-        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
-        st.error(_("failed_to_get_symbol_by_name_or_code_format").format(str(e)))
-        return None, None
-
 def main():
     """
     Main function for the Streamlit app
@@ -786,13 +743,25 @@ def main():
                         print(f"[DEBUG] Updated internal_symbol to: {symbol_code}")
                         
                         # 获取股票信息
-                        name, price_range = update_symbol_info(symbol_code)
-                        print(f"[DEBUG] Got symbol info - name: {name}, price_range: {price_range}")
+                        name, _ = get_symbol_info(symbol_code)
+                        print(f"[DEBUG] Got symbol info - name: {name}")
                         
                         if name:
                             st.session_state["symbol_name"] = name
                             st.session_state["last_symbol_name"] = name
-                            if price_range:
+                            
+                            # 获取价格区间
+                            end_date = datetime.now()
+                            start_date = end_date - timedelta(days=30)
+                            price_range = calculate_price_range(
+                                symbol_code,
+                                start_date.strftime("%Y-%m-%d"),
+                                end_date.strftime("%Y-%m-%d"),
+                                security_type
+                            )
+                            print(f"[DEBUG] Got price range: {price_range}")
+                            
+                            if price_range[0] is not None:
                                 st.session_state["price_range_min"] = price_range[0]
                                 st.session_state["price_range_max"] = price_range[1]
                                 print(f"[DEBUG] Updated session state with price range: {price_range}")

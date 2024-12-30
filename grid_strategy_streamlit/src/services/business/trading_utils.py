@@ -24,7 +24,7 @@ def calculate_ma_price(symbol: str, start_date: datetime, ma_period: int, securi
             df = ak.fund_etf_hist_em(symbol=symbol, start_date=start_date_str, end_date=end_date_str, adjust="qfq")
         
         if df.empty:
-            print("未获取到任���数据")
+            print("未获取到任何数据")
             return None, None
         
         # 确保日期列为索引且按时间升序排列
@@ -60,7 +60,7 @@ def get_symbol_info(symbol: str) -> Tuple[Optional[str], str]:
     @return: (证券名称, 证券类型)的元组，如果未找到则返回(None, "ETF")
     """
     try:
-        # 自动判断证券类��
+        # 自动判断证券类型
         security_type = "ETF" if len(symbol) == 6 and symbol.startswith(("1", "5")) else "STOCK"
         
         if security_type == "ETF":
@@ -79,6 +79,44 @@ def get_symbol_info(symbol: str) -> Tuple[Optional[str], str]:
     except Exception as e:
         print(f"获取证券信息失败: {e}")
         return None, "ETF"
+
+def get_symbol_by_name(name_or_code: str) -> Tuple[Optional[str], str]:
+    """
+    通过证券名称或代码获取证券代码和类型
+    
+    Args:
+        name_or_code: 证券名称或代码
+        
+    Returns:
+        Tuple[str, str]: (证券代码, 证券类型)，如果未找到则返回(None, None)
+    """
+    try:
+        print(f"[DEBUG] Getting symbol by name or code: {name_or_code}")
+        
+        # 先尝试在ETF中查找
+        df_etf = ak.fund_etf_spot_em()
+        etf_match = df_etf[(df_etf['名称'] == name_or_code) | (df_etf['代码'] == name_or_code)]
+        if not etf_match.empty:
+            code = etf_match.iloc[0]['代码']
+            print(f"[DEBUG] Found ETF: code={code}, name={etf_match.iloc[0]['名称']}")
+            return code, "ETF"
+            
+        # 再在A股中查找
+        df_stock = ak.stock_zh_a_spot_em()
+        stock_match = df_stock[(df_stock['名称'] == name_or_code) | (df_stock['代码'] == name_or_code)]
+        if not stock_match.empty:
+            code = stock_match.iloc[0]['代码']
+            print(f"[DEBUG] Found stock: code={code}, name={stock_match.iloc[0]['名称']}")
+            return code, "STOCK"
+            
+        print(f"[DEBUG] Symbol not found for name or code: {name_or_code}")
+        return None, None
+        
+    except Exception as e:
+        print(f"[ERROR] Error getting symbol by name or code: {str(e)}")
+        import traceback
+        print(f"[ERROR] Stack trace: {traceback.format_exc()}")
+        return None, None
 
 def calculate_price_range(symbol: str, start_date: str, end_date: str, security_type: str = "ETF") -> Tuple[Optional[float], Optional[float]]:
     """
