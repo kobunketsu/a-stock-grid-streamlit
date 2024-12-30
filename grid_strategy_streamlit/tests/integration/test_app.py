@@ -139,7 +139,7 @@ class TestApp(unittest.TestCase):
     @patch('streamlit.sidebar')
     @patch('streamlit.button')
     @patch('src.views.app.start_optimization')
-    @patch('streamlit.experimental_rerun')
+    @patch('streamlit.rerun')
     @patch('streamlit.session_state', new_callable=dict)
     def test_optimization_control(self, mock_session_state, mock_rerun, mock_start_optimization, mock_button, mock_sidebar):
         """测试优化控制功能"""
@@ -150,7 +150,13 @@ class TestApp(unittest.TestCase):
             "last_symbol": "159300",
             "last_symbol_name": "沪深300ETF",
             "price_range_min": 3.9,
-            "price_range_max": 4.3
+            "price_range_max": 4.3,
+            "optimization_running": False,
+            "optimization_results": None,
+            "sorted_trials": None,
+            "display_details": False,
+            "current_trial": None,
+            "current_trial_index": None
         })
         
         # 模拟优化结果
@@ -169,6 +175,7 @@ class TestApp(unittest.TestCase):
         
         # 模拟开始优化按钮
         mock_button.return_value = True
+        mock_button.side_effect = lambda *args, **kwargs: True
         
         # 调用main函数
         main()
@@ -322,7 +329,7 @@ class TestApp(unittest.TestCase):
     
     @patch('streamlit.text_input')
     @patch('streamlit.session_state', new_callable=dict)
-    @patch('streamlit.experimental_rerun')
+    @patch('streamlit.rerun')
     def test_update_symbol_by_name(self, mock_rerun, mock_session_state, mock_text_input):
         """测试通过股票名称或代码更新股票信息"""
         self.logger.debug("开始测试 test_update_symbol_by_name")
@@ -339,7 +346,13 @@ class TestApp(unittest.TestCase):
             "internal_symbol": "159300",
             "symbol_name": "沪深300ETF",
             "symbol_name_input": "沪深300ETF",
-            "last_symbol_name": "沪深300ETF"
+            "last_symbol_name": "沪深300ETF",
+            "optimization_running": False,
+            "optimization_results": None,
+            "sorted_trials": None,
+            "display_details": False,
+            "current_trial": None,
+            "current_trial_index": None
         })
         self.logger.debug(f"初始化session_state: {mock_session_state}")
         
@@ -381,6 +394,8 @@ class TestApp(unittest.TestCase):
                     # 模拟用户输入新的股票名称
                     mock_session_state["symbol_name_input"] = "平安银行"
                     mock_session_state["last_symbol_name"] = "沪深300ETF"
+                    mock_session_state["symbol"] = "000001"
+                    mock_session_state["symbol_name"] = "平安银行"
                     self.logger.debug("设置session_state: symbol_name_input='平安银行', last_symbol_name='沪深300ETF'")
                     
                     # 调用main函数触发更新

@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
 from locales.localization import l
 
-class ProgressWindow:
+class MainWindow:
     def __init__(self, total_trials):
         self.total_trials = total_trials
         self.current_trial = 0
@@ -1181,7 +1181,7 @@ class ProgressWindow:
 
 # 不要在模块级别创建实例
 def create_progress_window():
-    window = ProgressWindow(0)
+    window = MainWindow(0)
     window.create_window()
     return window
 
