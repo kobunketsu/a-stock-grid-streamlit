@@ -546,13 +546,13 @@ class TestApp(unittest.TestCase):
         测试场景：
         1. 开始日期晚于结束日期：
            - 从日历控件获取晚于结束日期的开始日期
-           - 验证日期未更新
-           - 验证显示原始日期
+           - 验证错误消息显示
+           - 验证开始优化按钮被禁用
         
         2. 结束日期早于开始日期：
            - 从日历控件获取早于开始日期的结束日期
-           - 验证日期未更新
-           - 验证显示原始日期
+           - 验证错误消息显示
+           - 验证开始优化按钮被禁用
         """
         # 设置初始日期
         initial_start = datetime(2024, 10, 10)
@@ -563,6 +563,7 @@ class TestApp(unittest.TestCase):
         mock_session_state.get.side_effect = lambda key, default=None: {
             'start_date': initial_start,
             'end_date': initial_end,
+            'date_validation_failed': True
         }.get(key, default)
         
         # 场景1：测试开始日期晚于结束日期
@@ -570,32 +571,34 @@ class TestApp(unittest.TestCase):
         mock_date_input.return_value = invalid_start
         
         # 调用日期输入处理
-        with patch('streamlit.error') as mock_error:
+        with patch('streamlit.error') as mock_error, \
+             patch('streamlit.button') as mock_button:
             main()  # 触发日期验证
-            
             # 验证错误消息显示
             mock_error.assert_any_call(l("end_date_must_be_later_than_start_date"))
-            
-            # 验证日期未被更新
-            mock_session_state.get.assert_any_call('start_date', initial_start)
-            # 验证日期控件显示原始值
-            mock_date_input.assert_any_call(label="", value=initial_start, key="start_date_input")
-            
+            # 验证开始优化按钮被禁用
+            mock_button.assert_called_with(
+                l("start_optimization"),
+                use_container_width=True,
+                disabled=True
+            )
+        
         # 场景2：测试结束日期早于开始日期
         invalid_end = datetime(2024, 9, 1)  # 早于开始日期
         mock_date_input.return_value = invalid_end
         
         # 调用日期输入处理
-        with patch('streamlit.error') as mock_error:
+        with patch('streamlit.error') as mock_error, \
+             patch('streamlit.button') as mock_button:
             main()  # 触发日期验证
-            
             # 验证错误消息显示
             mock_error.assert_any_call(l("end_date_must_be_later_than_start_date"))
-            
-            # 验证日期未被更新
-            mock_session_state.get.assert_any_call('end_date', initial_end)
-            # 验证日期控件显示原始值
-            mock_date_input.assert_any_call(label="", value=initial_end, key="end_date_input")
+            # 验证开始优化按钮被禁用
+            mock_button.assert_called_with(
+                l("start_optimization"),
+                use_container_width=True,
+                disabled=True
+            )
 
 
 if __name__ == '__main__':

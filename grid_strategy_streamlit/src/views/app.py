@@ -499,12 +499,15 @@ def validate_date(start_date: datetime, end_date: datetime) -> bool:
         if start_date >= end_date:
             print("[DEBUG] Date validation failed: end_date must be later than start_date")
             st.error(l("end_date_must_be_later_than_start_date"))
+            st.session_state['date_validation_failed'] = True
             return False
         print("[DEBUG] Date validation passed")
+        st.session_state['date_validation_failed'] = False
         return True
     except Exception as e:
         print(f"[ERROR] Date validation error: {str(e)}")
         st.error(l("date_validation_error_format").format(str(e)))
+        st.session_state['date_validation_failed'] = True
         return False
 
 def validate_initial_cash(initial_cash: int) -> bool:
@@ -909,9 +912,12 @@ def main():
                         connect_segments = False
                     
                     # 开始按钮
+                    button_disabled = st.session_state.get('date_validation_failed', False)
+                    print(f"[DEBUG] Button disabled state: {button_disabled}")
                     if st.button(
-                        l("cancel_optimization") if st.session_state.optimization_running else l("start_optimization"), 
-                        use_container_width=True
+                        l("cancel_optimization") if st.session_state.optimization_running else l("start_optimization"),
+                        use_container_width=True,
+                        disabled=button_disabled
                     ):
                         print("[DEBUG] Optimization button clicked")
                         toggle_optimization()
