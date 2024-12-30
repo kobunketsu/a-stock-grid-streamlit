@@ -14,7 +14,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from trading_utils import calculate_ma_price, get_symbol_info, calculate_price_range, is_valid_symbol
-from locales.localization import _
+from locales.localization import l
 
 class ProgressWindow:
     def __init__(self, total_trials):
@@ -66,7 +66,7 @@ class ProgressWindow:
         
     def create_window(self):
         self.root = tk.Tk()
-        self.root.title(_("app_title"))
+        self.root.title(l("app_title"))
         self.root.geometry("1200x800")
         
         # 初始化变量前先加载配置
@@ -94,14 +94,14 @@ class ProgressWindow:
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
         # 左侧参数面板
-        params_frame = ttk.LabelFrame(main_frame, text=_("param_settings"), padding=10)
+        params_frame = ttk.LabelFrame(main_frame, text=l("param_settings"), padding=10)
         params_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
         
         # 参数输入控件
         self.create_parameter_inputs(params_frame)
         
         # 中间结果板
-        results_frame = ttk.LabelFrame(main_frame, text=_("optimization_results"), padding=10)
+        results_frame = ttk.LabelFrame(main_frame, text=l("optimization_results"), padding=10)
         results_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
         
         # 添加排序按钮
@@ -111,7 +111,7 @@ class ProgressWindow:
         self.sort_ascending = False
         self.sort_button = ttk.Button(
             sort_frame, 
-            text=_("profit_rate_sort").format("↑" if self.sort_ascending else "↓"), 
+            text=l("profit_rate_sort").format("↑" if self.sort_ascending else "↓"), 
             command=self.toggle_sort
         )
         self.sort_button.pack(side=tk.LEFT)
@@ -129,14 +129,14 @@ class ProgressWindow:
         self.results_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # 右侧交易详情面板
-        details_frame = ttk.LabelFrame(main_frame, text=_("trade_details"), padding=10)
+        details_frame = ttk.LabelFrame(main_frame, text=l("trade_details"), padding=10)
         details_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
         # 创建交易详情区域
         self.create_trade_details_area(details_frame)
         
         # 底部进度面板
-        progress_frame = ttk.LabelFrame(self.root, text=_("optimization_progress"), padding=10)
+        progress_frame = ttk.LabelFrame(self.root, text=l("optimization_progress"), padding=10)
         progress_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
         
         # 创建进度相关控件
@@ -155,13 +155,13 @@ class ProgressWindow:
         parent.configure(width=200)
         
         # 证券代码输入框
-        ttk.Label(parent, text=_("symbol_code")).grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("symbol_code")).grid(row=0, column=0, sticky=tk.W, pady=2)
         symbol_entry = ttk.Entry(parent, textvariable=self.symbol_var, width=12)
         symbol_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
         symbol_entry.bind('<FocusOut>', lambda e: self.validate_symbol(symbol_entry))
         
         # 证券名称输入框
-        ttk.Label(parent, text=_("symbol_name")).grid(row=1, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("symbol_name")).grid(row=1, column=0, sticky=tk.W, pady=2)
         symbol_name_entry = ttk.Entry(parent, textvariable=self.symbol_name_var, width=12)
         symbol_name_entry.grid(row=1, column=1, sticky=tk.W, pady=2)
         
@@ -175,54 +175,54 @@ class ProgressWindow:
         self.update_symbol_info('code')
         
         # 其他参数输入框从第3行开始
-        ttk.Label(parent, text=_("start_date")).grid(row=2, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("start_date")).grid(row=2, column=0, sticky=tk.W, pady=2)
         start_date_entry = ttk.Entry(parent, textvariable=self.start_date_var, width=12)
         start_date_entry.grid(row=2, column=1, sticky=tk.W, pady=2)
         start_date_entry.bind('<FocusOut>', lambda e: self.validate_date(start_date_entry))
         
-        ttk.Label(parent, text=_("end_date")).grid(row=3, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("end_date")).grid(row=3, column=0, sticky=tk.W, pady=2)
         end_date_entry = ttk.Entry(parent, textvariable=self.end_date_var, width=12)
         end_date_entry.grid(row=3, column=1, sticky=tk.W, pady=2)
         end_date_entry.bind('<FocusOut>', lambda e: self.validate_date(end_date_entry))
         
-        ttk.Label(parent, text=_("ma_period")).grid(row=4, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("ma_period")).grid(row=4, column=0, sticky=tk.W, pady=2)
         ma_period_entry = ttk.Entry(parent, textvariable=self.ma_period_var, width=12)
         ma_period_entry.grid(row=4, column=1, sticky=tk.W, pady=2)
         
-        ttk.Checkbutton(parent, text=_("ma_protection"), variable=self.ma_protection_var).grid(
+        ttk.Checkbutton(parent, text=l("ma_protection"), variable=self.ma_protection_var).grid(
             row=5, column=0, columnspan=2, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text=_("initial_positions")).grid(row=6, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("initial_positions")).grid(row=6, column=0, sticky=tk.W, pady=2)
         initial_pos_entry = ttk.Entry(parent, textvariable=self.initial_positions_var, width=12)
         initial_pos_entry.grid(row=6, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text=_("initial_cash")).grid(row=7, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("initial_cash")).grid(row=7, column=0, sticky=tk.W, pady=2)
         initial_cash_entry = ttk.Entry(parent, textvariable=self.initial_cash_var, width=12)
         initial_cash_entry.grid(row=7, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text=_("min_buy_times")).grid(row=8, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("min_buy_times")).grid(row=8, column=0, sticky=tk.W, pady=2)
         min_buy_entry = ttk.Entry(parent, textvariable=self.min_buy_times_var, width=12)
         min_buy_entry.grid(row=8, column=1, sticky=tk.W, pady=2)
         
         # 价格范围框架
-        price_range_frame = ttk.LabelFrame(parent, text=_("price_range"), padding=5)
+        price_range_frame = ttk.LabelFrame(parent, text=l("price_range"), padding=5)
         price_range_frame.grid(row=9, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
-        ttk.Label(price_range_frame, text=_("min_value")).grid(row=0, column=0, sticky=tk.W, pady=2)
+        ttk.Label(price_range_frame, text=l("min_value")).grid(row=0, column=0, sticky=tk.W, pady=2)
         self.price_min_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_min_var, width=6)
         self.price_min_entry.grid(row=0, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(price_range_frame, text=_("max_value")).grid(row=0, column=2, sticky=tk.W, pady=2, padx=(5,0))
+        ttk.Label(price_range_frame, text=l("max_value")).grid(row=0, column=2, sticky=tk.W, pady=2, padx=(5,0))
         self.price_max_entry = ttk.Entry(price_range_frame, textvariable=self.price_range_max_var, width=6)
         self.price_max_entry.grid(row=0, column=3, sticky=tk.W, pady=2)
         
         
         # 优化设置
-        ttk.Label(parent, text=_("optimization_trials")).grid(row=10, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("optimization_trials")).grid(row=10, column=0, sticky=tk.W, pady=2)
         n_trials_entry = ttk.Entry(parent, textvariable=self.n_trials_var, width=12)
         n_trials_entry.grid(row=10, column=1, sticky=tk.W, pady=2)
         
-        ttk.Label(parent, text=_("display_top_n_results")).grid(row=11, column=0, sticky=tk.W, pady=2)
+        ttk.Label(parent, text=l("display_top_n_results")).grid(row=11, column=0, sticky=tk.W, pady=2)
         top_n_entry = ttk.Entry(parent, textvariable=self.top_n_var, width=12)
         top_n_entry.grid(row=11, column=1, sticky=tk.W, pady=2)
         
@@ -231,27 +231,27 @@ class ProgressWindow:
             row=12, column=0, columnspan=2, sticky='ew', pady=10)
 
         # 分段回测设置框架
-        segments_frame = ttk.LabelFrame(parent, text=_("segmented_backtest_settings"), padding=5)
+        segments_frame = ttk.LabelFrame(parent, text=l("segmented_backtest_settings"), padding=5)
         segments_frame.grid(row=13, column=0, columnspan=2, sticky=tk.EW, pady=5)
         
         # 分段回测开关
         self.enable_segments = tk.BooleanVar(value=False)
         ttk.Checkbutton(
             segments_frame,
-            text=_("segmented_backtest"),
+            text=l("segmented_backtest"),
             variable=self.enable_segments,
             command=self.toggle_segment_options
         ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=2)
         
         # 分段收益计算模
-        self.segment_label = ttk.Label(segments_frame, text=_("calculation_method"))
+        self.segment_label = ttk.Label(segments_frame, text=l("calculation_method"))
         self.segment_label.grid(row=1, column=0, sticky=tk.W, pady=2)
         
-        self.segment_mode = tk.StringVar(value=_("mean"))
+        self.segment_mode = tk.StringVar(value=l("mean"))
         self.segment_mode_combo = ttk.Combobox(
             segments_frame, 
             textvariable=self.segment_mode,
-            values=[_("mean"), _("median")],
+            values=[l("mean"), l("median")],
             state="readonly",
             width=12
         )
@@ -265,7 +265,7 @@ class ProgressWindow:
         self.connect_segments = tk.BooleanVar(value=False)
         self.connect_checkbox = ttk.Checkbutton(
             segments_frame,
-            text=_("connect_cash_and_positions"),
+            text=l("connect_cash_and_positions"),
             variable=self.connect_segments
         )
         self.connect_checkbox.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=2)
@@ -276,7 +276,7 @@ class ProgressWindow:
         # 开始优化按钮
         self.start_button = ttk.Button(
             parent, 
-            text=_("start_optimization"), 
+            text=l("start_optimization"), 
             command=self.toggle_optimization
         )
         self.start_button.grid(row=14, column=0, columnspan=2, pady=10, sticky=tk.EW)
@@ -304,7 +304,7 @@ class ProgressWindow:
     
     def create_progress_widgets(self, parent):
         """创建进度相关控件"""
-        self.label = ttk.Label(parent, text=_("waiting_to_start"), font=('Arial', 10))
+        self.label = ttk.Label(parent, text=l("waiting_to_start"), font=('Arial', 10))
         self.label.pack(pady=5)
         
         self.progress = ttk.Progressbar(parent, orient="horizontal", length=300, mode="determinate")
@@ -314,10 +314,10 @@ class ProgressWindow:
         self.percent_label.pack(pady=2)
         
         # 初始化时间显示
-        self.time_label = ttk.Label(parent, text=_("elapsed_time_format").format("0:00:00"), font=('Arial', 10))
+        self.time_label = ttk.Label(parent, text=l("elapsed_time_format").format("0:00:00"), font=('Arial', 10))
         self.time_label.pack(pady=2)
         
-        self.eta_label = ttk.Label(parent, text=_("estimated_remaining_format").format("--:--:--"), font=('Arial', 10))
+        self.eta_label = ttk.Label(parent, text=l("estimated_remaining_format").format("--:--:--"), font=('Arial', 10))
         self.eta_label.pack(pady=2)
     
     def start_optimization(self, event=None):
@@ -333,12 +333,12 @@ class ProgressWindow:
             # 获取并验证参数
             symbol = self.symbol_var.get().strip()
             if not symbol:
-                self.error_message = _("please_enter_symbol_code")
+                self.error_message = l("please_enter_symbol_code")
                 return
             
             # 验证证券代码是否有效
             if not self.is_valid_symbol(symbol):
-                self.error_message = _("please_enter_valid_symbol_code")
+                self.error_message = l("please_enter_valid_symbol_code")
                 return
             
             # 自动判断证券类型
@@ -349,47 +349,47 @@ class ProgressWindow:
                 start_date = datetime.strptime(self.start_date_var.get().strip(), '%Y-%m-%d')
                 end_date = datetime.strptime(self.end_date_var.get().strip(), '%Y-%m-%d')
             except ValueError:
-                self.error_message = _("invalid_date_format")
+                self.error_message = l("invalid_date_format")
                 return
             
             # 验证其他参数
             try:
                 ma_period = int(self.ma_period_var.get())
                 if ma_period <= 0:
-                    self.error_message = _("ma_period_must_be_greater_than_0")
+                    self.error_message = l("ma_period_must_be_greater_than_0")
                     return
                 
                 ma_protection = self.ma_protection_var.get()
                 
                 initial_positions = int(self.initial_positions_var.get())
                 if initial_positions < 0:
-                    self.error_message = _("initial_positions_must_be_greater_than_or_equal_to_0")
+                    self.error_message = l("initial_positions_must_be_greater_than_or_equal_to_0")
                     return
                 
                 initial_cash = int(self.initial_cash_var.get())
                 if initial_cash < 0:
-                    self.error_message = _("initial_cash_must_be_greater_than_or_equal_to_0")
+                    self.error_message = l("initial_cash_must_be_greater_than_or_equal_to_0")
                     return
                 
                 min_buy_times = int(self.min_buy_times_var.get())
                 if min_buy_times <= 0:
-                    self.error_message = _("min_buy_times_must_be_greater_than_0")
+                    self.error_message = l("min_buy_times_must_be_greater_than_0")
                     return
                 
                 price_range_min = float(self.price_range_min_var.get())
                 price_range_max = float(self.price_range_max_var.get())
                 if price_range_min >= price_range_max:
-                    self.error_message = _("price_range_min_must_be_less_than_price_range_max")
+                    self.error_message = l("price_range_min_must_be_less_than_price_range_max")
                     return
                 
                 n_trials = int(self.n_trials_var.get())
                 if n_trials <= 0:
-                    self.error_message = _("n_trials_must_be_greater_than_0")
+                    self.error_message = l("n_trials_must_be_greater_than_0")
                     return
                 
                 top_n = int(self.top_n_var.get())
                 if top_n <= 0:
-                    self.error_message = _("top_n_must_be_greater_than_0")
+                    self.error_message = l("top_n_must_be_greater_than_0")
                     return
                 
                 price_range = (price_range_min, price_range_max)
@@ -399,7 +399,7 @@ class ProgressWindow:
             
             # 更新UI状态
             self.optimization_running = True
-            self.start_button.configure(text=_("cancel_optimization"))
+            self.start_button.configure(text=l("cancel_optimization"))
             
             # 更新总试验次数
             self.total_trials = int(n_trials * 1.5)
@@ -410,7 +410,7 @@ class ProgressWindow:
             self.progress["value"] = 0
             self.percent_label["text"] = "0%"
             self.start_time = datetime.now()
-            self.label["text"] = _("optimizing_parameters")
+            self.label["text"] = l("optimizing_parameters")
             
             # 清空之前结果显示
             for widget in self.params_container.winfo_children():
@@ -450,8 +450,8 @@ class ProgressWindow:
                         # 在主线程中更新UI
                         def update_ui():
                             if not self.is_closed:
-                                self.label["text"] = _("optimization_complete")
-                                self.start_button.configure(text=_("start_optimization"))
+                                self.label["text"] = l("optimization_complete")
+                                self.start_button.configure(text=l("start_optimization"))
                                 self.optimization_running = False
                                 # 显示优化结果
                                 self.display_optimization_results(results)
@@ -460,12 +460,12 @@ class ProgressWindow:
                         
                 except Exception as e:
                     if not self.is_closed:
-                        self.root.after(0, lambda: self.start_button.configure(text=_("start_optimization")))
+                        self.root.after(0, lambda: self.start_button.configure(text=l("start_optimization")))
                         self.optimization_running = False
                 finally:
                     # 确保状态正确置
                     if not self.is_closed:
-                        self.root.after(0, lambda: self.start_button.configure(text=_("start_optimization")))
+                        self.root.after(0, lambda: self.start_button.configure(text=l("start_optimization")))
                         self.optimization_running = False
             
             # 在新线程中运行优化
@@ -475,11 +475,11 @@ class ProgressWindow:
             
         except ValueError as e:
             self.error_message = str(e)
-            self.start_button.configure(text=_("start_optimization"))
+            self.start_button.configure(text=l("start_optimization"))
             self.optimization_running = False
         except Exception as e:
-            self.error_message = _("optimization_start_failed") + f": {str(e)}"
-            self.start_button.configure(text=_("start_optimization"))
+            self.error_message = l("optimization_start_failed") + f": {str(e)}"
+            self.start_button.configure(text=l("start_optimization"))
             self.optimization_running = False
     
     def capture_output(self, text):
@@ -520,7 +520,7 @@ class ProgressWindow:
         try:
             self.save_config()  # 保存配置
         except Exception as e:
-            print(f"{_('error_saving_config')}: {e}")
+            print(f"{l('error_saving_config')}: {e}")
         finally:
             self.is_closed = True
             if self.root:
@@ -560,8 +560,8 @@ class ProgressWindow:
                 return
             self.progress["value"] = progress
             self.percent_label["text"] = f"{percent:.1f}%"
-            self.time_label["text"] = _("elapsed_time_format").format(str(elapsed_time).split('.')[0])
-            self.eta_label["text"] = _("estimated_remaining_format").format(str(remaining_time).split('.')[0])
+            self.time_label["text"] = l("elapsed_time_format").format(str(elapsed_time).split('.')[0])
+            self.eta_label["text"] = l("estimated_remaining_format").format(str(remaining_time).split('.')[0])
         
         self.root.after(0, update_ui)
     
@@ -598,7 +598,7 @@ class ProgressWindow:
                 new_size = min(size + 1, 30)
                 self.trade_details.configure(font=(font_name, new_size))
             except Exception as e:
-                print(f"{_('error_adjusting_font_size')}: {e}")
+                print(f"{l('error_adjusting_font_size')}: {e}")
     
     def decrease_font_size(self, event=None):
         """减小字体大小"""
@@ -618,7 +618,7 @@ class ProgressWindow:
                 new_size = max(size - 1, 6)
                 self.trade_details.configure(font=(font_name, new_size))
             except Exception as e:
-                print(f"{_('error_adjusting_font_size')}: {e}")
+                print(f"{l('error_adjusting_font_size')}: {e}")
     
     def focus_search(self, event=None):
         """聚焦到搜索框"""
@@ -634,7 +634,7 @@ class ProgressWindow:
         
         content = self.trade_details.get("1.0", tk.END)
         matches = content.lower().count(search_term.lower())
-        self.search_count_label.config(text=f"{_('found')} {matches} {_('matches')}")
+        self.search_count_label.config(text=f"{l('found')} {matches} {l('matches')}")
         
         if matches > 0:
             # 获取当前光标位置
@@ -760,7 +760,7 @@ class ProgressWindow:
     def toggle_sort(self):
         """切换排序方向并重新显示结果"""
         self.sort_ascending = not self.sort_ascending
-        self.sort_button.config(text=f"{_('profit_rate')} {'↑' if self.sort_ascending else '↓'}")
+        self.sort_button.config(text=f"{l('profit_rate')} {'↑' if self.sort_ascending else '↓'}")
         if hasattr(self, 'current_results'):
             self.display_optimization_results(self.current_results)
     
@@ -792,18 +792,18 @@ class ProgressWindow:
             # 如果没有有效结果，显示提示信息
             ttk.Label(
                 self.params_container, 
-                text=_("no_parameter_combinations_with_profit_greater_than_0_found"),
+                text=l("no_parameter_combinations_with_profit_greater_than_0_found"),
                 font=('Arial', 10)
             ).pack(pady=10)
             return
         
         # 参数名称映射
         param_names = {
-            'up_sell_rate': _('up_sell'),
-            'up_callback_rate': _('up_callback'),            
-            'down_buy_rate': _('down_buy'),
-            'down_rebound_rate': _('down_rebound'),
-            'shares_per_trade': _('shares_per_trade')
+            'up_sell_rate': l('up_sell'),
+            'up_callback_rate': l('up_callback'),            
+            'down_buy_rate': l('down_buy'),
+            'down_rebound_rate': l('down_rebound'),
+            'shares_per_trade': l('shares_per_trade')
         }
         
         # 显示每个结果
@@ -814,7 +814,7 @@ class ProgressWindow:
             # 创建结果框架
             result_frame = ttk.LabelFrame(
                 self.params_container,
-                text=_("parameter_combination_format").format(i, profit_rate)  # 移除 * 100，因为 profit_rate 已经是百分比形式
+                text=l("parameter_combination_format").format(i, profit_rate)  # 移除 * 100，因为 profit_rate 已经是百分比形式
             )
             result_frame.pack(fill=tk.X, padx=5, pady=5)
             
@@ -828,14 +828,14 @@ class ProgressWindow:
                 else:
                     param_text += f"{param_names[key]}: {value*100:.2f}%\n"
             
-            param_text += f"{_('trade_count')}: {trial.user_attrs.get('trade_count', 'N/A')}"
+            param_text += f"{l('trade_count')}: {trial.user_attrs.get('trade_count', 'N/A')}"
             
             param_label = ttk.Label(result_frame, text=param_text, justify=tk.LEFT)
             param_label.pack(padx=5, pady=5)
             
             # 添加查看详情按钮
             # 添加查看按钮
-            detail_button = ttk.Button(result_frame, text=_("view_details"), 
+            detail_button = ttk.Button(result_frame, text=l("view_details"), 
                       command=lambda p=trial.params: self.display_strategy_details(p)).pack(
                           side=tk.RIGHT, padx=5)
 
@@ -850,7 +850,7 @@ class ProgressWindow:
         search_frame = ttk.Frame(parent)
         search_frame.pack(fill=tk.X, pady=(0, 5))
         
-        ttk.Label(search_frame, text=_("search")).pack(side=tk.LEFT)
+        ttk.Label(search_frame, text=l("search")).pack(side=tk.LEFT)
         
         self.search_var = tk.StringVar()
         self.search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
@@ -896,7 +896,7 @@ class ProgressWindow:
                 # 获取证券信息
                 name, security_type = get_symbol_info(symbol)
                 if name is None:
-                    self.symbol_name_var.set(_("symbol_not_found"))
+                    self.symbol_name_var.set(l("symbol_not_found"))
                     return
                 
                 self.symbol_name_var.set(name)
@@ -911,14 +911,14 @@ class ProgressWindow:
                     if config_data:
                         self.price_range_min_var.set(config_data.get('price_range_min', ''))
                         self.price_range_max_var.set(config_data.get('price_range_max', ''))
-                        print(f"{_('loaded_price_range_from_config')}: {config_data.get('price_range_min')} - {config_data.get('price_range_max')}")
+                        print(f"{l('loaded_price_range_from_config')}: {config_data.get('price_range_min')} - {config_data.get('price_range_max')}")
                     else:
                         # 如果配置文件中没有，则使用历史数据计算价格范围
                         price_min, price_max = calculate_price_range(symbol, start_date, end_date, security_type)
                         if price_min is not None and price_max is not None:
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
-                            print(f"{_('updated_price_range')}: {price_min:.3f} - {price_max:.3f}")
+                            print(f"{l('updated_price_range')}: {price_min:.3f} - {price_max:.3f}")
                 
             else:  # source == 'name'
                 name = self.symbol_name_var.get().strip()
@@ -942,7 +942,7 @@ class ProgressWindow:
                         if price_min is not None and price_max is not None:
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
-                            print(f"{_('updated_price_range')}: {price_min:.3f} - {price_max:.3f}")
+                            print(f"{l('updated_price_range')}: {price_min:.3f} - {price_max:.3f}")
                     return
                 
                 # 如果ETF中未找到，尝试在股票中查找
@@ -961,14 +961,14 @@ class ProgressWindow:
                         if price_min is not None and price_max is not None:
                             self.price_range_min_var.set(f"{price_min:.3f}")
                             self.price_range_max_var.set(f"{price_max:.3f}")
-                            print(f"{_('updated_price_range')}: {price_min:.3f} - {price_max:.3f}")
+                            print(f"{l('updated_price_range')}: {price_min:.3f} - {price_max:.3f}")
                 else:
-                    print(f"{_('no_symbol_found_format').format(name)}")
+                    print(f"{l('no_symbol_found_format').format(name)}")
                 
         except Exception as e:
-            print(f"{_('failed_to_update_symbol_info')}: {e}")
+            print(f"{l('failed_to_update_symbol_info')}: {e}")
             if source == 'code':
-                self.symbol_name_var.set(_("symbol_not_found"))
+                self.symbol_name_var.set(l("symbol_not_found"))
             else:
                 self.symbol_var.set("")
     
@@ -1013,14 +1013,14 @@ class ProgressWindow:
                 # if 'connect_segments' in config and config['connect_segments'] is not None:
                 #     self.connect_segments_var.set(config['connect_segments'])
                     
-                print(_("loaded_config_file"))
+                print(l("loaded_config_file"))
         except Exception as e:
-            print(f"{_('failed_to_load_config_file')}: {e}")
+            print(f"{l('failed_to_load_config_file')}: {e}")
     
     def save_config(self):
         """保存配置到文件"""
         if not self.validate_all_inputs():
-            print(_("error_saving_config"), _("invalid_parameters_cannot_save_config"))
+            print(l("error_saving_config"), l("invalid_parameters_cannot_save_config"))
             return
 
         config = {
@@ -1044,9 +1044,9 @@ class ProgressWindow:
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=4)
-            print(_("config_saved"))
+            print(l("config_saved"))
         except Exception as e:
-            print(f"{_('error_saving_config')}: {e}")
+            print(f"{l('error_saving_config')}: {e}")
     
     def load_config_value(self, key):
         """获取配置文件中的特定值"""
@@ -1064,19 +1064,19 @@ class ProgressWindow:
         if not self.optimization_running:
             # 开始优化
             self.start_optimization()
-            self.start_button.configure(text=_("cancel_optimization"))
+            self.start_button.configure(text=l("cancel_optimization"))
             self.optimization_running = True
         else:
             # 取消优化
             self.cancel_optimization()
-            self.start_button.configure(text=_("start_optimization"))
+            self.start_button.configure(text=l("start_optimization"))
             self.optimization_running = False
     
     def cancel_optimization(self):
         """取消优化"""
         self.optimization_running = False
-        self.start_button.configure(text=_("start_optimization"))
-        self.label.configure(text=_("optimization_cancelled"))
+        self.start_button.configure(text=l("start_optimization"))
+        self.label.configure(text=l("optimization_cancelled"))
         self.progress.configure(value=0)
         self.percent_label.configure(text="0%")
 
@@ -1096,7 +1096,7 @@ class ProgressWindow:
                             'price_range_max': config.get('price_range_max')
                         }
         except Exception as e:
-            print(f"{_('failed_to_load_symbol_config')}: {e}")
+            print(f"{l('failed_to_load_symbol_config')}: {e}")
         return None
 
     def toggle_segment_options(self):
@@ -1118,7 +1118,7 @@ class ProgressWindow:
                 min_buy_times = int(self.min_buy_times_var.get())
                 from segment_utils import get_segment_days
                 days = get_segment_days(min_buy_times)
-                self.segment_days_label.config(text=f"{_('days_per_segment')}: {days} {_('trading_days')}")
+                self.segment_days_label.config(text=f"{l('days_per_segment')}: {days} {l('trading_days')}")
             except ValueError:
                 self.segment_days_label.config(text="")
         else:
@@ -1128,12 +1128,12 @@ class ProgressWindow:
         """验证证券代码"""
         symbol = self.symbol_var.get().strip()
         if not symbol:
-            self.error_message = _("please_enter_symbol_code")
+            self.error_message = l("please_enter_symbol_code")
             return False
         
         # 验证证券代码是否有效
         if not self.is_valid_symbol(symbol):
-            self.error_message = _("please_enter_valid_symbol_code")
+            self.error_message = l("please_enter_valid_symbol_code")
             return False
         
         return True
@@ -1146,7 +1146,7 @@ class ProgressWindow:
             entry.config(foreground='black')
         except ValueError:
             entry.config(foreground='red')
-            messagebox.showerror(_("input_error"), _("invalid_date_format"))
+            messagebox.showerror(l("input_error"), l("invalid_date_format"))
 
     def is_valid_symbol(self, symbol):
         """检查证券代码是否有效"""
@@ -1171,12 +1171,12 @@ class ProgressWindow:
         """清理优化状态"""
         self.optimization_running = False
         if self.root and not self.is_closed:
-            self.start_button.configure(text=_("start_optimization"))
-            self.label["text"] = _("optimization_cancelled")
+            self.start_button.configure(text=l("start_optimization"))
+            self.label["text"] = l("optimization_cancelled")
             self.progress["value"] = 0
             self.percent_label["text"] = "0%"
-            self.time_label["text"] = f"{_('elapsed_time')}: 0:00:00"
-            self.eta_label["text"] = f"{_('estimated_remaining')}: --:--:--"
+            self.time_label["text"] = f"{l('elapsed_time')}: 0:00:00"
+            self.eta_label["text"] = f"{l('estimated_remaining')}: --:--:--"
             self.root.update()
 
 # 不要在模块级别创建实例

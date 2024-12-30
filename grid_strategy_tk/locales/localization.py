@@ -24,4 +24,4 @@ def setup_localization():
     return translate
 
 # 创建全局翻译函数
-_ = setup_localization() 
+l = setup_localization() 

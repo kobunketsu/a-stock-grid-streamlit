@@ -27,7 +27,7 @@ def load_translations(lang: str = DEFAULT_LANGUAGE) -> None:
         print(f"加载翻译文件失败: {e}")
         _translations[lang] = {}
 
-def _(key: str, lang: str = DEFAULT_LANGUAGE) -> str:
+def l(key: str, lang: str = DEFAULT_LANGUAGE) -> str:
     """获取翻译文本"""
     if lang not in _translations:
         load_translations(lang)
