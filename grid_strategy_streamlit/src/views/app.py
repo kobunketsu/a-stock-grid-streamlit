@@ -336,7 +336,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
                             st.session_state[key] = value
                             print(f"[DEBUG] Restored {key} = {value}")
                             
-                    st.experimental_rerun()
+                    st.rerun()
     
     # 在详情列中显示交易详情
     with details_col:
@@ -350,7 +350,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
                 st.session_state['display_details'] = False
                 st.session_state['current_trial'] = None
                 st.session_state['current_trial_index'] = None
-                st.experimental_rerun()
+                st.rerun()
             else:
                 print(f"[DEBUG] Displaying details for trial")
                 display_strategy_details(st.session_state['current_trial'].params)
@@ -1041,7 +1041,7 @@ def main():
                             # Display optimization results
                             st.session_state['new_results'] = True
                             st.session_state['optimization_results'] = results
-                            st.experimental_rerun()
+                            st.rerun()
                         else:
                             print("[DEBUG] Optimization failed")
                             
