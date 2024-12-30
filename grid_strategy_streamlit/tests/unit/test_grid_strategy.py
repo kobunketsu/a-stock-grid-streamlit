@@ -9,7 +9,18 @@ class TestGridStrategy(unittest.TestCase):
     """网格策略测试类"""
     
     def setUp(self):
-        """测试前的准备工作"""
+        """初始化测试环境，设置基本参数和模拟数据
+        场景: 初始化测试环境
+        输入: 
+            - symbol: 159300
+            - symbol_name: 沪深300ETF
+            - base_price: 4.0
+            - price_range: (3.9, 4.3)
+            - 其他基本参数和模拟数据
+        验证:
+            - 基本参数设置正确
+            - 模拟数据生成完整
+        """
         self.strategy = GridStrategy(symbol="159300", symbol_name="沪深300ETF")
         self.strategy.base_price = 4.0
         self.strategy.price_range = (3.9, 4.3)
@@ -36,7 +47,25 @@ class TestGridStrategy(unittest.TestCase):
         })
     
     def test_initialization(self):
-        """测试策略初始化"""
+        """验证策略初始化参数和异常处理
+        场景1: 正常初始化
+        输入:
+            - symbol: 159300
+            - symbol_name: 沪深300ETF
+            - initial_positions: 5000
+            - initial_cash: 100000
+        验证:
+            - 参数设置正确
+            - 状态初始化正确
+
+        场景2: 异常参数处理
+        输入:
+            - initial_cash: -1000 (负数)
+            - initial_positions: -1000 (负数)
+            - price_range: (4.3, 3.9) (无效区间)
+        验证:
+            - 抛出ValueError异常
+        """
         # 测试正常初始化
         self.assertEqual(self.strategy.symbol, "159300")
         self.assertEqual(self.strategy.symbol_name, "沪深300ETF")
@@ -60,7 +89,31 @@ class TestGridStrategy(unittest.TestCase):
             strategy.backtest()
     
     def test_buy_operation(self):
-        """测试买入操作"""
+        """测试买入操作的执行和资金变动
+        场景1: 正常买入
+        输入:
+            - 买入价格: 4.0
+            - 买入日期: 2024-01-01
+        验证:
+            - 交易成功
+            - 持仓增加1000
+            - 现金减少4000
+
+        场景2: 价格超出范围
+        输入:
+            - 买入价格: 3.8 (低于最低价)
+        验证:
+            - 交易失败
+            - 记录失败原因
+
+        场景3: 现金不足
+        输入:
+            - 现金设为0
+            - 买入价格: 4.0
+        验证:
+            - 交易失败
+            - 记录失败原因
+        """
         # 测试正常买入
         result = self.strategy.buy(4.0, "2024-01-01")
         self.assertTrue(result)
@@ -80,7 +133,31 @@ class TestGridStrategy(unittest.TestCase):
         self.assertEqual(self.strategy.failed_trades["现金不足"], 1)
     
     def test_sell_operation(self):
-        """测试卖出操作"""
+        """测试卖出操作的执行和持仓变动
+        场景1: 正常卖出
+        输入:
+            - 卖出价格: 4.0
+            - 卖出日期: 2024-01-01
+        验证:
+            - 交易成功
+            - 持仓减少1000
+            - 现金增加4000
+
+        场景2: 价格超出范围
+        输入:
+            - 卖出价格: 4.4 (高于最高价)
+        验证:
+            - 交易失败
+            - 记录失败原因
+
+        场景3: 持仓不足
+        输入:
+            - 持仓设为0
+            - 卖出价格: 4.0
+        验证:
+            - 交易失败
+            - 记录失败原因
+        """
         # 测试正常卖出
         result = self.strategy.sell(4.0, "2024-01-01")
         self.assertTrue(result)
@@ -101,7 +178,17 @@ class TestGridStrategy(unittest.TestCase):
     
     @patch('akshare.fund_etf_hist_em')
     def test_backtest(self, mock_hist_data):
-        """测试回测功能"""
+        """验证回测功能的正确性和数据处理
+        场景: 完整回测流程
+        输入:
+            - 开始日期: 2024-01-01
+            - 结束日期: 2024-01-10
+            - 模拟历史数据
+        验证:
+            - 返回收益率为float类型
+            - 产生交易记录
+            - 回测过程完整执行
+        """
         # 设置模拟数据
         mock_hist_data.return_value = self.mock_hist_data
         
@@ -117,7 +204,22 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(len(self.strategy.trades) > 0)
     
     def test_calculate_profit(self):
-        """测试收益计算"""
+        """测试收益计算的准确性
+        场景1: 盈利情况
+        输入:
+            - 初始现金: 100000
+            - 初始持仓: 5000
+            - 基准价格: 4.0
+            - 当前价格: 4.2
+        验证:
+            - 收益率为正
+
+        场景2: 亏损情况
+        输入:
+            - 当前价格: 3.8
+        验证:
+            - 收益率为负
+        """
         self.strategy.initial_cash = 100000
         self.strategy.initial_positions = 5000
         self.strategy.base_price = 4.0
@@ -133,7 +235,26 @@ class TestGridStrategy(unittest.TestCase):
         self.assertLess(self.strategy.final_profit_rate, 0)
     
     def test_ma_protection_edge_cases(self):
-        """测试均线保护的边界条件"""
+        """测试均线保护的边界情况处理
+        场景1: 价格等于均线
+        输入:
+            - 当前价格: 4.0
+            - 均线价格: 4.0
+        验证:
+            - 买卖操作均允许
+
+        场景2: 均线数据缺失
+        输入:
+            - 均线价格: None
+        验证:
+            - 买卖操作均允许
+
+        场景3: 未启用均线保护
+        输入:
+            - ma_protection: False
+        验证:
+            - 买卖操作均允许
+        """
         self.strategy.ma_protection = True
         self.strategy.ma_period = 5
         
@@ -151,7 +272,28 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(self.strategy._check_ma_protection(4.0, 4.0, False))
     
     def test_trade_failure_recording(self):
-        """测试交易失败记录"""
+        """验证交易失败记录的完整性
+        场景1: 现金不足
+        输入:
+            - 现金设为0
+            - 买入价格: 4.0
+        验证:
+            - 记录"现金不足"失败
+
+        场景2: 持仓不足
+        输入:
+            - 持仓设为0
+            - 卖出价格: 4.0
+        验证:
+            - 记录"无持仓"失败
+
+        场景3: 价格超出范围
+        输入:
+            - 买入价格: 3.8 (低于最低价)
+            - 卖出价格: 4.4 (高于最高价)
+        验证:
+            - 记录价格超范围失败
+        """
         # 测试买入失败记录
         self.strategy.cash = 0  # 设置现金为0
         self.strategy.buy(4.0, '2024-01-01')
@@ -162,7 +304,7 @@ class TestGridStrategy(unittest.TestCase):
         self.strategy.sell(4.0, '2024-01-01')
         self.assertEqual(self.strategy.failed_trades['无持仓'], 1)
         
-        # ��试价格超出范围的失败记录
+        # 测试价格超出范围的失败记录
         self.strategy.buy(3.8, '2024-01-01')  # 低于最低价
         self.assertEqual(self.strategy.failed_trades['买入价格超范围'], 1)
         
@@ -170,7 +312,15 @@ class TestGridStrategy(unittest.TestCase):
         self.assertEqual(self.strategy.failed_trades['卖出价格超范围'], 1)
     
     def test_stock_data_fetching(self):
-        """测试股票数据获取"""
+        """测试股票数据获取的可靠性
+        场景: 股票类型数据获取
+        输入:
+            - security_type: STOCK
+            - 模拟历史数据
+        验证:
+            - 数据获取成功
+            - 回测正常执行
+        """
         # 设置为股票类型
         self.strategy.security_type = "STOCK"
         
@@ -181,7 +331,14 @@ class TestGridStrategy(unittest.TestCase):
             self.assertIsInstance(profit_rate, float)
     
     def test_empty_data_handling(self):
-        """测试空数据处理"""
+        """验证空数据处理的健壮性
+        场景: 历史数据为空
+        输入:
+            - 空DataFrame
+        验证:
+            - 抛出适当异常
+            - 错误信息准确
+        """
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
             # 设置返回空数据
             mock_hist_data.return_value = pd.DataFrame()
@@ -191,7 +348,22 @@ class TestGridStrategy(unittest.TestCase):
                 self.strategy.backtest('2024-01-01', '2024-01-05')
     
     def test_verbose_output(self):
-        """测试详细输出模式"""
+        """测试详细输出模式的功能
+        场景1: 回测详细输出
+        输入:
+            - verbose: True
+            - 模拟历史数据
+        验证:
+            - 输出包含详细信息
+            - 收益计算正确
+
+        场景2: 收益计算详细输出
+        输入:
+            - verbose: True
+            - 当前价格: 4.0
+        验证:
+            - 输出包含收益详情
+        """
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
             # 设置模拟数据
             mock_hist_data.return_value = self.mock_hist_data
@@ -204,18 +376,42 @@ class TestGridStrategy(unittest.TestCase):
             self.strategy.calculate_profit(4.0, verbose=True)
     
     def test_invalid_date_format(self):
-        """测试无效日期格式"""
+        """验证无效日期格式的异常处理
+        场景: 无效日期输入
+        输入:
+            - 日期: "invalid-date"
+        验证:
+            - 抛出ValueError异常
+        """
         with self.assertRaises(ValueError):
             self.strategy.buy(4.0, "invalid-date")
     
     def test_future_date_trading(self):
-        """测试未来日期交易"""
+        """测试未来日期交易的限制
+        场景: 使用未来日期
+        输入:
+            - 日期: 当前日期+1天
+        验证:
+            - 买卖操作均返回False
+        """
         future_date = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
         self.assertFalse(self.strategy.buy(4.0, future_date))
         self.assertFalse(self.strategy.sell(4.0, future_date))
     
     def test_date_format_conversion(self):
-        """测试日期格式转换"""
+        """验证日期格式转换的正确性
+        场景1: Timestamp格式
+        输入:
+            - 日期: pd.Timestamp('2024-01-01')
+        验证:
+            - 交易正常执行
+
+        场景2: 字符串格式
+        输入:
+            - 日期: '2024-01-01'
+        验证:
+            - 交易正常执行
+        """
         # 测试 pd.Timestamp 格式
         timestamp_date = pd.Timestamp('2024-01-01')
         self.assertTrue(self.strategy.buy(4.0, timestamp_date))
@@ -225,7 +421,14 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(self.strategy.buy(4.0, str_date))
     
     def test_ma_protection_with_invalid_data(self):
-        """测试均线保护在数据无效时的处理"""
+        """测试均线保护在无效数据情况下的处理
+        场景: 均线数据无效
+        输入:
+            - ma_protection: True
+            - ma_data: None
+        验证:
+            - 买卖操作均允许执行
+        """
         self.strategy.ma_protection = True
         self.strategy.ma_data = None
         
@@ -234,7 +437,24 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(self.strategy.sell(4.0, '2024-01-01'))
 
     def test_format_trade_details(self):
-        """测试交易详情格式化功能"""
+        """验证交易详情格式化的准确性
+        场景1: 不启用分段回测
+        输入:
+            - enable_segments: False
+            - 模拟交易结果数据
+        验证:
+            - 输出格式正确
+            - 包含必要信息
+
+        场景2: 启用分段回测
+        输入:
+            - enable_segments: True
+            - 分段数据
+            - profit_calc_method: mean/median
+        验证:
+            - 包含分段信息
+            - 汇总信息正确
+        """
         # 准备测试数据
         results = {
             'total_profit': 10.5,
@@ -306,7 +526,23 @@ class TestGridStrategy(unittest.TestCase):
         self.assertTrue(any('中位数收益率: 10.50%' in line for line in output_lines))
 
     def test_run_strategy_details(self):
-        """测试策略详情运行功能"""
+        """测试策略运行详情的完整性
+        场景1: 单一时间段
+        输入:
+            - 策略参数
+            - 单一时间段
+        验证:
+            - 结果格式完整
+            - 包含所有必要信息
+
+        场景2: 多时间段
+        输入:
+            - 策略参数
+            - 多个时间段
+        验证:
+            - 包含所有分段结果
+            - 汇总信息正确
+        """
         with patch('akshare.fund_etf_hist_em') as mock_hist_data:
             # 设置模拟数据
             mock_hist_data.return_value = self.mock_hist_data
@@ -372,7 +608,18 @@ class TestGridStrategy(unittest.TestCase):
             self.assertGreater(len(results['output']), 0)
 
     def test_format_trial_details(self):
-        """测试试验结果格式化功能"""
+        """验证试运行详情格式化的准确性
+        场景: 完整试运行结果
+        输入:
+            - 模拟trial对象
+            - 包含参数组合
+            - 包含分段结果
+        验证:
+            - 输出格式正确
+            - 包含参数详情
+            - 包含分段信息
+            - 包含失败统计
+        """
         # 创建模拟的trial对象
         class MockTrial:
             def __init__(self):

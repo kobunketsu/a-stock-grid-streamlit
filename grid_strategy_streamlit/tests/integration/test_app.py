@@ -43,11 +43,27 @@ class TestApp(unittest.TestCase):
         patch.stopall()
     
     def test_validate_symbol(self):
-        """测试证券代码验证"""
+        """测试证券代码验证
+        
+        测试场景：
+        1. 空代码：
+           - 输入空字符串
+           - 验证返回False
+        
+        2. 无效代码：
+           - 输入无效代码
+           - 验证API返回False
+           - 验证返回False
+        
+        3. 有效代码：
+           - 输入159300
+           - 验证API返回True
+           - 验证返回True
+        """
         # 测试空证券代码
         self.assertFalse(validate_symbol(""))
         
-        # 测试有效的证券代码
+        # 测试无效的证券代码
         self.mock_is_valid_symbol.return_value = False
         self.assertFalse(validate_symbol("invalid"))
         
@@ -56,7 +72,17 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_symbol("159300"))
     
     def test_validate_date(self):
-        """测试日期验证"""
+        """测试日期验证
+        
+        测试场景：
+        1. 无效日期范围：
+           - 结束日期早于开始日期
+           - 验证返回False
+        
+        2. 有效日期范围：
+           - 结束日期晚于开始日期
+           - 验证返回True
+        """
         # 测试结束日期早于开始日期
         start_date = datetime(2024, 12, 20)
         end_date = datetime(2024, 10, 10)
@@ -68,7 +94,21 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_date(start_date, end_date))
     
     def test_validate_initial_cash(self):
-        """测试初始资金验证"""
+        """测试初始资金验证
+        
+        测试场景：
+        1. 无效金额：
+           - 输入负数-1000
+           - 验证返回False
+        
+        2. 边界值：
+           - 输入0
+           - 验证返回True
+        
+        3. 有效金额：
+           - 输入100000
+           - 验证返回True
+        """
         # 测试负数初始资金
         self.assertFalse(validate_initial_cash(-1000))
         
@@ -79,7 +119,21 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_initial_cash(100000))
     
     def test_validate_min_buy_times(self):
-        """测试最小买入次数验证"""
+        """测试最小买入次数验证
+        
+        测试场景：
+        1. 无效次数（0）：
+           - 输入0，返回False
+           - 验证边界值处理
+        
+        2. 无效次数（负数）：
+           - 输入-1，返回False
+           - 验证负数处理
+        
+        3. 有效次数：
+           - 输入1，返回True
+           - 验证正常值处理
+        """
         # 测试无效的最小买入次数（0）
         self.assertFalse(validate_min_buy_times(0))
         
@@ -90,7 +144,17 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_min_buy_times(1))
     
     def test_validate_price_range(self):
-        """测试价格区间验证"""
+        """测试价格区间验证
+        
+        测试场景：
+        1. 无效区间：
+           - 输入最小值4.3，最大值3.9
+           - 验证区间反转处理
+        
+        2. 有效区间：
+           - 输入最小值3.9，最大值4.3
+           - 验证正常区间处理
+        """
         # 测试无效的价格区间（最小值大于最大值）
         self.assertFalse(validate_price_range(4.3, 3.9))
         
@@ -98,7 +162,21 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_price_range(3.9, 4.3))
     
     def test_validate_n_trials(self):
-        """测试优化次数验证"""
+        """测试优化次数验证
+        
+        测试场景：
+        1. 无效次数（负数）：
+           - 输入-1，返回False
+           - 验证负数处理
+        
+        2. 无效次数（0）：
+           - 输入0，返回False
+           - 验证边界值处理
+        
+        3. 有效次数：
+           - 输入100，返回True
+           - 验证正常值处理
+        """
         # 测试无效的试验次数（负数）
         self.assertFalse(validate_n_trials(-1))
         
@@ -109,7 +187,21 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_n_trials(100))
     
     def test_validate_top_n(self):
-        """测试显示结果数量验证"""
+        """测试显示结果数量验证
+        
+        测试场景：
+        1. 无效数量（负数）：
+           - 输入-1，返回False
+           - 验证负数处理
+        
+        2. 无效数量（0）：
+           - 输入0，返回False
+           - 验证边界值处理
+        
+        3. 有效数量：
+           - 输入5，返回True
+           - 验证正常值处理
+        """
         # 测试无效的top_n（负数）
         self.assertFalse(validate_top_n(-1))
         
@@ -122,7 +214,19 @@ class TestApp(unittest.TestCase):
     @patch('streamlit.error')
     @patch('src.views.app.is_valid_symbol')
     def test_error_handling(self, mock_is_valid_symbol, mock_error):
-        """测试错误处理"""
+        """测试错误处理
+        
+        测试场景：
+        1. API错误：
+           - 模拟is_valid_symbol抛出异常
+           - 验证错误信息显示
+           - 验证异常处理
+        
+        2. 日期验证错误：
+           - 输入结束日期早于开始日期
+           - 验证错误信息显示
+           - 验证日期验证逻辑
+        """
         # 测试API错误
         mock_is_valid_symbol.side_effect = Exception("API错误")
         validate_symbol("159300")
@@ -139,7 +243,20 @@ class TestApp(unittest.TestCase):
     @patch('streamlit.rerun')
     @patch('streamlit.session_state')
     def test_optimization_control(self, mock_session_state, mock_rerun):
-        """测试优化控制功能"""
+        """测试优化控制功能
+        
+        测试场景：
+        1. 开始优化：
+           - 初始状态为未运行
+           - 调用toggle_optimization
+           - 验证状态切换为运行
+        
+        2. 取消优化：
+           - 初始状态为运行中
+           - 调用toggle_optimization
+           - 验证状态切换为未运行
+           - 验证页面重新加载
+        """
         self.logger.debug("开始测试 test_optimization_control")
         
         # 初始化session_state
@@ -166,7 +283,19 @@ class TestApp(unittest.TestCase):
     @patch('json.load')
     @patch('builtins.open')
     def test_config_management(self, mock_open, mock_load, mock_dump):
-        """测试配置管理"""
+        """测试配置管理
+        
+        测试场景：
+        1. 配置加载：
+           - 模拟配置文件存在
+           - 验证文件打开操作
+           - 验证配置加载
+        
+        2. 配置内容：
+           - 验证所有必要字段存在
+           - 验证字段类型和默认值
+           - 验证配置应用到界面
+        """
         # 模拟配置文件
         mock_config = {
             "symbol": "159300",
@@ -197,7 +326,19 @@ class TestApp(unittest.TestCase):
     
     @patch('streamlit.checkbox')
     def test_segment_options(self, mock_checkbox):
-        """测试分段回测选项"""
+        """测试分段回测选项
+        
+        测试场景：
+        1. 启用分段回测：
+           - 模拟复选框选中
+           - 验证界面更新
+           - 验证相关选项显示
+        
+        2. 选项联动：
+           - 验证计算方法选择显示
+           - 验证段间连接选项显示
+           - 验证分段天数显示
+        """
         # 模拟分段回测选项
         mock_checkbox.return_value = True
         
@@ -209,7 +350,18 @@ class TestApp(unittest.TestCase):
     
     @patch('streamlit.write')
     def test_trade_details_display(self, mock_write):
-        """测试交易详情显示"""
+        """测试交易详情显示
+        
+        测试场景：
+        1. 完整交易信息：
+           - 包含参数、收益率、交易次数
+           - 验证显示格式
+           - 验证调用write方法
+        
+        2. 失败交易信息：
+           - 包含失败原因和次数
+           - 验证错误信息显示
+        """
         # 模拟交易详情数据
         trade_details = {
             "params": {
@@ -235,7 +387,19 @@ class TestApp(unittest.TestCase):
     @patch('streamlit.expander')
     @patch('streamlit.columns')
     def test_view_trial_details(self, mock_columns, mock_expander, mock_button, mock_session_state):
-        """测试查看优化结果详情时状态保持"""
+        """测试查看优化结果详情
+        
+        测试场景：
+        1. 初始状态：
+           - 验证详情显示标志为False
+           - 验证当前试验为空
+           - 验证试验索引为空
+        
+        2. 状态重置：
+           - 调用display_optimization_results
+           - 验证状态重置
+           - 验证界面更新
+        """
         # 模拟优化结果数据
         mock_trial = MagicMock(
             value=-2.5,
