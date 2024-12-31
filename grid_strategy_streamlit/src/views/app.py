@@ -1007,6 +1007,28 @@ def main():
                     # 开始按钮
                     button_disabled = st.session_state.get('date_validation_failed', False)
                     print(f"[DEBUG] Button disabled state: {button_disabled}")
+                    
+                    # 添加按钮的自定义样式
+                    st.markdown("""
+                        <style>
+                            div[data-testid="stButton"] {
+                                left: 0;
+                                right: 0;
+                                bottom: 0;
+                                position: fixed !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                background: gray !important;
+                                width: 100% !important;
+                            }
+                            div[data-testid="stButton"] button {
+                                width: 100% !important;
+                                padding: 0.5rem !important;
+                                border-radius: 0 !important;
+                            }
+                        </style>
+                    """, unsafe_allow_html=True)
+                    
                     if st.button(
                         l("cancel_optimization") if st.session_state.optimization_running else l("start_optimization"),
                         use_container_width=True,
@@ -1099,6 +1121,7 @@ def main():
                                 cancel_optimization()
                             else:
                                 st.rerun()
+                
                 
             except Exception as e:
                 print(f"[ERROR] Error in parameter input section: {str(e)}")
