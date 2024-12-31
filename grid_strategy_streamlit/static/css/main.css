@@ -178,3 +178,29 @@ section[data-testid="stSidebar"] [data-testid="collapsedControl"] {
         width: 100% !important;
     }
 }
+
+/* 按钮样式 */
+div[data-testid="stButton"] {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    position: fixed !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    width: 450px !important;  /* 与sidebar宽度一致 */
+    z-index: 999;
+}
+
+div[data-testid="stButton"] button {
+    width: 100% !important;
+    padding: 0.75rem !important;
+    border-radius: 0 !important;
+}
+
+/* 移动设备适配按钮样式 */
+@media (max-width: 768px) {
+    div[data-testid="stButton"] {
+        width: 100% !important;
+    }
+}

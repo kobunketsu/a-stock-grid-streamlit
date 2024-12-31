@@ -787,6 +787,9 @@ def main():
         with st.sidebar:
             try:
                 print("[DEBUG] Creating parameter input section")
+                # 添加footer容器
+                footer_container = st.container()
+                
                 # Left column - Parameters
                 with params_col:
                     try:
