@@ -126,5 +126,14 @@
     "failed_to_validate_symbol_format": "验证证券代码失败: {0}",
     "failed_to_get_symbol_by_name_or_code_format": "通过名称或代码获取证券信息失败: {0}",
     "symbol_not_found": "未找到证券，请检查输入的名称或代码是否正确",
-    "optimizing": "优化中..."
+    "optimizing": "优化中...",
+    "no_data_found": "未获取到任何数据",
+    "future_trade_not_allowed": "不能在未来日期 {0} 进行交易",
+    "ma_protection_buy_failed": "均线保护：当前价格 {0:.3f} 低于均线 {1:.3f}",
+    "ma_protection_sell_failed": "均线保护：当前价格 {0:.3f} 高于均线 {1:.3f}",
+    "buy_price_out_of_range": "买入价格 {0:.3f} 超出允许范围 {1}",
+    "sell_price_out_of_range": "卖出价格 {0:.3f} 超出允许范围 {1}",
+    "insufficient_cash": "现金不足，需要 {0:.2f}，当前现金 {1:.2f}",
+    "insufficient_positions": "持仓不足，需要 {0}，当前持仓 {1}",
+    "backtest_error": "回测过程中发生错误: {0}"
 } 

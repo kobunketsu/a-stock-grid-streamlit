@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import io
 from contextlib import redirect_stdout
 from src.services.business.trading_utils import calculate_ma_price
+from src.utils.localization import l
 
 class GridStrategy:
     def __init__(self, symbol="560610", symbol_name="国开ETF"):
@@ -81,26 +82,26 @@ class GridStrategy:
             if isinstance(time, pd.Timestamp):
                 time = time.strftime('%Y-%m-%d')
             datetime.strptime(time, '%Y-%m-%d')
-            # 检���是否是未来日期
+            # 检查是否是未来日期
             if datetime.strptime(time, '%Y-%m-%d') > datetime.now():
                 if self.verbose:
-                    print(f"不能在未来日期 {time} 进行交易")
+                    print(l("future_trade_not_allowed").format(time))
                 return False
         except ValueError:
-            raise ValueError("无效的日期格式，应为 YYYY-MM-DD")
+            raise ValueError(l("invalid_date_format"))
         
         # 检查均线保护
         if self.ma_protection and self.ma_data is not None:
             ma_price = self.ma_data[self.ma_data['日期'] == time]['MA5'].iloc[0]
             if not self._check_ma_protection(price, ma_price, True):
                 if self.verbose:
-                    print(f"均线保护：当前价格 {price:.3f} 低于均线 {ma_price:.3f}")
+                    print(l("ma_protection_buy_failed").format(price, ma_price))
                 return False
         
         # 首先验证价格是否在允许范围内
         if not (self.price_range[0] <= price <= self.price_range[1]):
             if self.verbose:
-                print(f"买入价格 {price:.3f} 超出允许范围 {self.price_range}")
+                print(l("buy_price_out_of_range").format(price, self.price_range))
             self.failed_trades["买入价格超范围"] += 1
             return False
             
@@ -110,7 +111,7 @@ class GridStrategy:
             self.cash -= amount
             self.trades.append({
                 "时间": time,
-                "操���": "买入",
+                "操作": "买入",
                 "价格": price,
                 "数量": self.shares_per_trade,
                 "金额": amount
@@ -118,7 +119,7 @@ class GridStrategy:
             return True
         else:
             if self.verbose:
-                print(f"现金不足，需要 {amount:.2f}，当前现金 {self.cash:.2f}")
+                print(l("insufficient_cash").format(amount, self.cash))
             self.failed_trades["现金不足"] += 1
             return False
 
@@ -134,23 +135,23 @@ class GridStrategy:
             # 检查是否是未来日期
             if datetime.strptime(time, '%Y-%m-%d') > datetime.now():
                 if self.verbose:
-                    print(f"不能在未来日期 {time} 进行交易")
+                    print(l("future_trade_not_allowed").format(time))
                 return False
         except ValueError:
-            raise ValueError("无效的日期格式，应为 YYYY-MM-DD")
+            raise ValueError(l("invalid_date_format"))
         
         # 检查均线保护
         if self.ma_protection and self.ma_data is not None:
             ma_price = self.ma_data[self.ma_data['日期'] == time]['MA5'].iloc[0]
             if not self._check_ma_protection(price, ma_price, False):
                 if self.verbose:
-                    print(f"均线保���：当前价格 {price:.3f} 高于均线 {ma_price:.3f}")
+                    print(l("ma_protection_sell_failed").format(price, ma_price))
                 return False
         
         # 首先验证价格是否在允许范围内
         if not (self.price_range[0] <= price <= self.price_range[1]):
             if self.verbose:
-                print(f"卖出价格 {price:.3f} 超出允许范围 {self.price_range}")
+                print(l("sell_price_out_of_range").format(price, self.price_range))
             self.failed_trades["卖出价格超范围"] += 1
             return False
             
@@ -168,7 +169,7 @@ class GridStrategy:
             return True
         else:
             if self.verbose:
-                print(f"持仓不足，需要 {self.shares_per_trade}，当前持仓 {self.positions}")
+                print(l("insufficient_positions").format(self.shares_per_trade, self.positions))
             self.failed_trades["无持仓"] += 1
             return False
 
@@ -178,11 +179,11 @@ class GridStrategy:
         """
         # 参数验证
         if self.initial_cash < 0:
-            raise ValueError("初始现金不能为负数")
+            raise ValueError(l("initial_cash_must_be_greater_than_or_equal_to_0"))
         if self.initial_positions < 0:
-            raise ValueError("初始持仓不能为负数")
+            raise ValueError(l("initial_positions_must_be_greater_than_or_equal_to_0"))
         if self.price_range and self.price_range[0] > self.price_range[1]:
-            raise ValueError("价格区间无效：最低价大于最高价")
+            raise ValueError(l("price_range_min_must_be_less_than_price_range_max"))
         
         # 处理日期参数
         if start_date is None:
@@ -195,7 +196,7 @@ class GridStrategy:
                 end_date = datetime.strptime(end_date, '%Y-%m-%d')
             
             if start_date > end_date:
-                raise ValueError("开始日期不能晚于结束日期")
+                raise ValueError(l("end_date_must_be_later_than_start_date"))
         
         start_date_str = start_date.strftime('%Y%m%d')
         end_date_str = end_date.strftime('%Y%m%d')
@@ -223,7 +224,7 @@ class GridStrategy:
                 )
             
             if df.empty:
-                raise Exception("未获取到任何数据")
+                raise Exception(l("no_data_found"))
             
             df = df.reset_index(drop=True)
             last_trigger_price_up = self.base_price
@@ -303,7 +304,7 @@ class GridStrategy:
                                 print(f"\n无法买入 - 所需资金 {required_cash:.2f}, 当前现金 {self.cash:.2f}")
                             self.failed_trades["现金不足"] += 1
                 
-                # 打印当��交易记录
+                # 打印当日交易记录
                 if verbose:
                     trades_after = len(self.trades)
                     if trades_after > trades_before:
@@ -320,7 +321,7 @@ class GridStrategy:
             return self.final_profit_rate
             
         except Exception as e:
-            print(f"回测过程中发生错误: {str(e)}")
+            print(l("backtest_error").format(str(e)))
             raise
 
     def calculate_profit(self, last_price, verbose=False):
