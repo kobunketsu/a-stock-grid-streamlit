@@ -34,22 +34,23 @@ from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
 # 给 st 添加获取用户代理的方法
 st.get_user_agent = get_user_agent
 
+# 初始化页面配置（必须是第一个st命令）
+st.set_page_config(
+    page_title=l("app_title"),
+    page_icon="📈",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 #region 初始化和配置
-"""初始化和配置相关函数，包括：
-- 页面配置初始化
-- 设备检测
-- 状态管理
-- 配置文件处理
-"""
+#初始化和配置相关函数，包括：
+#- 页面配置初始化
+#- 设备检测 
+#- 状态管理
+#- 配置文件处理
 def init_page_config():
     """初始化页面配置"""
     print("[DEBUG] Initializing page config")
-    st.set_page_config(
-        page_title=l("app_title"),
-        page_icon="📈",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
     
     # 加载外部CSS文件
     css_path = os.path.join(ROOT_DIR, "static", "css", "main.css")
@@ -143,12 +144,11 @@ def save_config(config):
 #endregion
 
 #region 页面布局
-"""页面布局相关函数，包括：
-- 布局列创建
-- 参数输入区域
-- 优化按钮
-- 证券名称更新处理
-"""
+# 页面布局相关函数，包括：
+# - 布局列创建
+# - 参数输入区域
+# - 优化按钮
+# - 证券名称更新处理
 def create_layout_columns():
     """创建布局列"""
     print("[DEBUG] Creating layout columns")
@@ -416,12 +416,11 @@ def handle_symbol_name_update():
 #endregion
 
 #region 参数验证
-"""参数验证相关函数，包括：
-- 输入参数验证
-- 证券代码验证
-- 日期范围验证
-- 资金和交易参数验证
-"""
+#参数验证相关函数，包括：
+#- 输入参数验证
+#- 证券代码验证  
+#- 日期范围验证
+#- 资金和交易参数验证
 def validate_all_inputs(
     symbol: str,
     start_date: datetime,
@@ -579,11 +578,10 @@ def validate_top_n(top_n: int) -> bool:
 #endregion
 
 #region 优化控制
-"""优化控制相关函数，包括：
-- 优化状态切换
-- 优化过程处理
-- 策略优化执行
-"""
+#优化控制相关函数，包括：
+#- 优化状态切换
+#- 优化过程处理  
+#- 策略优化执行
 def toggle_optimization():
     """切换优化状态（开始/取消）"""
     if not st.session_state.optimization_running:
@@ -770,11 +768,10 @@ def optimize_strategy(optimizer, config):
 #endregion
 
 #region 结果显示
-"""结果显示相关函数，包括：
-- 优化结果展示
-- 交易详情显示
-- 策略详情展示
-"""
+#结果显示相关函数，包括：
+#- 优化结果展示
+#- 交易详情显示  
+#- 策略详情展示
 def display_results(top_n):
     """显示优化结果"""
     print("[DEBUG] Checking for existing results")
@@ -1174,11 +1171,10 @@ def display_strategy_details(strategy_params):
 #endregion
 
 #region 工具函数
-"""工具函数，包括：
-- 证券信息更新
-- 分段天数计算
-- 其他辅助功能
-"""
+#工具函数，包括：
+#- 证券信息更新
+#- 分段天数计算
+#- 其他辅助功能
 def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
     """更新证券信息返回证券名称和价格区间"""
     try:
@@ -1343,7 +1339,7 @@ def display_strategy_details(strategy_params):
 #endregion
 
 #region 主函数
-"""主程序入口"""
+#主程序入口
 def main():
     """主函数"""
     try:
@@ -1386,10 +1382,10 @@ def main():
                 if create_optimization_button():
                     print("[DEBUG] Optimization button clicked")
                     toggle_optimization()
-                            st.rerun()
-                
+                    st.rerun()
+        
                 # 如果正在优化中，处理优化过程
-                            if st.session_state.optimization_running:
+                if st.session_state.optimization_running:
                     handle_optimization(config, params)
                 
             except Exception as e:
