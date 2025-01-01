@@ -179,11 +179,11 @@ section[data-testid="stSidebar"] [data-testid="collapsedControl"] {
     }
 }
 
-/* 按钮样式 */
-div[data-testid="stButton"] {
+/* 进度条和按钮的容器样式 */
+div[data-testid="stButton"],
+div.stProgress {
     left: 0;
     right: 0;
-    bottom: 0;
     position: fixed !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -192,15 +192,45 @@ div[data-testid="stButton"] {
     z-index: 999;
 }
 
+/* 进度条位置 */
+div.stProgress {
+    bottom: 48px;  /* 按钮高度 + padding */
+    padding: 0.5rem 1rem !important;
+}
+
+/* 按钮位置 */
+div[data-testid="stButton"] {
+    bottom: 0;
+}
+
 div[data-testid="stButton"] button {
     width: 100% !important;
     padding: 0.75rem !important;
     border-radius: 0 !important;
 }
 
-/* 移动设备适配按钮样式 */
+/* 移动设备适配按钮和进度条样式 */
 @media (max-width: 768px) {
-    div[data-testid="stButton"] {
+    div[data-testid="stButton"],
+    div.stProgress {
         width: 100% !important;
     }
+}
+
+/* 确保进度条显示正常 */
+div.stProgress {
+    background: transparent !important;
+}
+
+div.stProgress > div {
+    padding: 0 !important;
+}
+
+div.stProgress .st-emotion-cache-1y4p8pa {
+    padding: 0 !important;
+}
+
+div.stProgress .st-emotion-cache-1y4p8pa > div {
+    height: 0.5rem !important;
+    border-radius: 0 !important;
 }
