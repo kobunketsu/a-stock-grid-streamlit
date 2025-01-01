@@ -98,7 +98,7 @@
     "parameter_combination_format": "组合 {0} - 收益率: {1:.2f}%",
     "search_matches_format": "找到 {0} 个匹配",
     "segment_days_format": "每段区间: {0}个交易",
-    "optimization_progress_format": "正在优化参数... ({0}/{1})",
+    "optimization_progress_format": "正在优化... {0}/{1}",
     "no_symbol_found_format": "未找到包含 '{0}' 的证券",
     "profit_rate_sort": "收益率 {0}",
     "symbol_not_found": "未找到证券",
@@ -125,5 +125,6 @@
     "enter_symbol_name_or_code": "输入证券名称或代码",
     "failed_to_validate_symbol_format": "验证证券代码失败: {0}",
     "failed_to_get_symbol_by_name_or_code_format": "通过名称或代码获取证券信息失败: {0}",
-    "symbol_not_found": "未找到证券，请检查输入的名称或代码是否正确"
+    "symbol_not_found": "未找到证券，请检查输入的名称或代码是否正确",
+    "optimizing": "优化中..."
 } 

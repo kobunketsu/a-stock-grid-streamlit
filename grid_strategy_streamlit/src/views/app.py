@@ -685,7 +685,7 @@ def start_optimization(
         
         # 设置进度条和状态文本
         optimizer.progress_bar = progress_bar
-        optimizer.status_text = status_text
+        optimizer.status_text = None  # 不再使用单独的状态文本
         
         # 存储优化器实例到session state
         st.session_state.optimizer = optimizer
@@ -1043,9 +1043,11 @@ def main():
                         
                     # 如果正在优化中，显示进度条
                     if st.session_state.optimization_running:
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
+                        progress_container = st.container()
+                        with progress_container:
+                            progress_text = l("optimization_progress_format").format("0", str(n_trials))
+                            progress_bar = st.progress(0, progress_text)
+
                         # 从session state获取symbol
                         symbol = st.session_state.get("internal_symbol", "")
                         if not symbol:
@@ -1107,8 +1109,7 @@ def main():
                             top_n=top_n,
                             profit_calc_method=profit_calc_method,
                             connect_segments=connect_segments,
-                            progress_bar=progress_bar,
-                            status_text=status_text
+                            progress_bar=progress_bar
                         )
                             
                         if results:

@@ -198,6 +198,15 @@ div.stProgress {
     padding: 0.5rem 1rem !important;
 }
 
+/* 进度条文本样式 */
+div.stProgress p {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 0.8rem !important;
+    color: #666666 !important;
+    text-align: center !important;
+}
+
 /* 按钮位置 */
 div[data-testid="stButton"] {
     bottom: 0;
