@@ -135,5 +135,10 @@
     "sell_price_out_of_range": "卖出价格 {0:.3f} 超出允许范围 {1}",
     "insufficient_cash": "现金不足，需要 {0:.2f}，当前现金 {1:.2f}",
     "insufficient_positions": "持仓不足，需要 {0}，当前持仓 {1}",
-    "backtest_error": "回测过程中发生错误: {0}"
+    "backtest_error": "回测过程中发生错误: {0}",
+    "strategy_analysis_no_results": "策略分析未返回任何结果",
+    "run_strategy_details_error_format": "运行策略详情时发生错误: {error}",
+    "critical_error_format": "程序发生严重错误: {error}",
+    "display_optimization_results_error_format": "显示优化结果时发生错误: {error}",
+    "optimization_error_format": "优化过程中发生错误: {error}"
 } 

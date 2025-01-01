@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import io
 from contextlib import redirect_stdout
+from locales.localization import l
 
 class GridStrategy:
     def __init__(self, symbol="560610", symbol_name="国开ETF"):
@@ -392,7 +393,7 @@ class GridStrategy:
         segment_results = []
         all_output = []
         
-        # 如果没有提供时���段，则使用单一时间段
+        # 如果没有提供时间段，则使用单一时间段
         if not segments:
             segments = [(start_date, end_date)]
         
@@ -428,7 +429,7 @@ class GridStrategy:
                 'failed_trades': self.failed_trades.copy()
             }
             
-            # ��计统计信息
+            # 计算统计信息
             total_profit += profit_rate
             total_trades += len(self.trades)
             for reason, count in self.failed_trades.items():
@@ -506,20 +507,21 @@ class GridStrategy:
         profit_rate = -trial.value
         
         # 显示参数组合信息
-        output_lines.append("参数组合详情")
-        output_lines.append(f"总收益率: {profit_rate:.2f}%\n")
+        output_lines.append(l("param_combination_details"))
+        output_lines.append(l("total_profit_rate_format").format(profit_rate=profit_rate))
+        output_lines.append("")
         
         # 参数名称映射
         param_names = {
-            'up_sell_rate': '上涨卖出',
-            'up_callback_rate': '上涨回调',            
-            'down_buy_rate': '下跌买入',
-            'down_rebound_rate': '下跌反弹',
-            'shares_per_trade': '每次交易股数'
+            'up_sell_rate': l("up_sell_rate"),
+            'up_callback_rate': l("up_callback_rate"),            
+            'down_buy_rate': l("down_buy_rate"),
+            'down_rebound_rate': l("down_rebound_rate"),
+            'shares_per_trade': l("shares_per_trade")
         }
         
         # 显示参数详情
-        output_lines.append("参数详情:")
+        output_lines.append(l("param_details"))
         for key, value in trial.params.items():
             if key == 'shares_per_trade':
                 output_lines.append(f"{param_names[key]}: {value:,}")
@@ -527,24 +529,30 @@ class GridStrategy:
                 output_lines.append(f"{param_names[key]}: {value*100:.2f}%")
         
         # 显示交易统计信息
-        output_lines.append(f"\n交易次数: {trial.user_attrs.get('trade_count', 'N/A')}")
+        output_lines.append(f"\n{l('trade_count_format').format(count=trial.user_attrs.get('trade_count', 'N/A'))}")
         
         # 显示分段回测结果（如果有）
         if 'segment_results' in trial.user_attrs:
-            output_lines.append("\n=== 分段回测详情 ===")
+            output_lines.append(f"\n=== {l('segment_backtest_details')} ===")
             for i, segment in enumerate(trial.user_attrs['segment_results'], 1):
-                output_lines.append(f"\n分段 {i}:")
-                output_lines.append(f"时间段: {segment['start_date']} - {segment['end_date']}")
-                output_lines.append(f"收益率: {segment['profit_rate']:.2f}%")
-                output_lines.append(f"交易次数: {segment['trades']}")
+                output_lines.append(f"\n{l('segment_format').format(num=i)}:")
+                output_lines.append(l("time_period_format").format(
+                    start_date=segment['start_date'],
+                    end_date=segment['end_date']
+                ))
+                output_lines.append(l("profit_rate_format").format(profit_rate=segment['profit_rate']))
+                output_lines.append(l("trade_count_format").format(count=segment['trades']))
                 
                 # 显示失败交易统计（如果有）
                 if segment.get('failed_trades'):
-                    output_lines.append("\n失败交易统计:")
+                    output_lines.append(f"\n{l('failed_trade_statistics')}:")
                     for reason, count in segment['failed_trades'].items():
                         if count > 0:
-                            output_lines.append(f"  {reason}: {count} 次")
-        
+                            output_lines.append(l("failed_trade_count_format").format(
+                                reason=reason,
+                                count=count
+                            ))
+                            
         return output_lines
 
 if __name__ == "__main__":

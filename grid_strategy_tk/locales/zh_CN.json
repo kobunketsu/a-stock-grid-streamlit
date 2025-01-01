@@ -96,5 +96,20 @@
     "optimization_progress_format": "正在优化参数... ({0}/{1})",
     "no_symbol_found_format": "未找到包含 '{0}' 的证券",
     "profit_rate_sort": "收益率 {0}",
-    "symbol_not_found": "未找到证券"
+    "symbol_not_found": "未找到证券",
+    "param_combination_details": "参数组合详情",
+    "total_profit_rate_format": "总收益率: {profit_rate:.2f}%",
+    "param_details": "参数详情:",
+    "up_sell_rate": "上涨卖出",
+    "up_callback_rate": "上涨回调",
+    "down_buy_rate": "下跌买入",
+    "down_rebound_rate": "下跌反弹",
+    "shares_per_trade": "每次交易股数",
+    "trade_count_format": "交易次数: {count}",
+    "segment_backtest_details": "分段回测详情",
+    "segment_format": "分段 {num}",
+    "time_period_format": "时间段: {start_date} - {end_date}",
+    "profit_rate_format": "收益率: {profit_rate:.2f}%",
+    "failed_trade_statistics": "失败交易统计",
+    "failed_trade_count_format": "  {reason}: {count} 次"
 } 

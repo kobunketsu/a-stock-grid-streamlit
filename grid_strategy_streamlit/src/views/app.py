@@ -126,7 +126,7 @@ def display_strategy_details(strategy_params):
         
         if results is None:
             print("[DEBUG] Strategy details analysis returned None")
-            st.error("策略分析未返回任何结果")
+            st.error(l("strategy_analysis_no_results"))
             return
             
         print(f"[DEBUG] Strategy details analysis results: {results}")
@@ -150,7 +150,7 @@ def display_strategy_details(strategy_params):
         print(f"[DEBUG] Error type: {type(e)}")
         import traceback
         print(f"[DEBUG] Stack trace: {traceback.format_exc()}")
-        st.error(f"运行策略详情时发生错误: {str(e)}")
+        st.error(f"{l('run_strategy_details_error_format').format(error=str(e))}")
         return
 
 def validate_all_inputs(
