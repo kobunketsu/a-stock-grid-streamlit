@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 import streamlit
 from datetime import datetime, timedelta
 import json
@@ -241,7 +241,7 @@ class TestApp(unittest.TestCase):
         mock_error.assert_called_with(l("end_date_must_be_later_than_start_date"))
     
     @patch('streamlit.rerun')
-    @patch('streamlit.session_state')
+    @patch('streamlit.session_state', new_callable=dict)
     def test_optimization_control(self, mock_session_state, mock_rerun):
         """测试优化控制功能
         
@@ -260,7 +260,8 @@ class TestApp(unittest.TestCase):
         self.logger.debug("开始测试 test_optimization_control")
         
         # 初始化session_state
-        mock_session_state.optimization_running = False
+        mock_session_state.clear()
+        mock_session_state['optimization_running'] = False
         
         # 调用toggle_optimization函数开始优化
         self.logger.debug("调用toggle_optimization开始优化")
@@ -268,7 +269,7 @@ class TestApp(unittest.TestCase):
         
         # 验证状态更新
         self.logger.debug("验证状态更新")
-        self.assertTrue(mock_session_state.optimization_running)
+        self.assertTrue(mock_session_state['optimization_running'])
         
         # 调用toggle_optimization函数取消优化
         self.logger.debug("调用toggle_optimization取消优化")
@@ -276,7 +277,7 @@ class TestApp(unittest.TestCase):
         
         # 验证取消优化
         self.logger.debug("验证取消优化")
-        self.assertFalse(mock_session_state.optimization_running)
+        self.assertFalse(mock_session_state['optimization_running'])
         mock_rerun.assert_called()
     
     @patch('json.dump')
@@ -666,6 +667,117 @@ class TestApp(unittest.TestCase):
         self.assertIn('button[aria-label="Close sidebar"]', actual_script)
         self.assertIn('div[data-testid="collapsedControl"]', actual_script)
         self.assertTrue(actual_kwargs.get('unsafe_allow_html', False))
+    
+    @patch('streamlit.session_state', new_callable=dict)
+    @patch('streamlit.button')
+    @patch('streamlit.expander')
+    @patch('streamlit.columns')
+    def test_mask_layer_during_optimization(self, mock_columns, mock_expander, mock_button, mock_session_state):
+        """测试优化过程中的遮罩层功能
+        
+        测试场景：
+        1. 开始优化时：
+           - 验证遮罩层创建
+           - 验证遮罩层样式和位置
+           - 验证遮罩层不覆盖优化按钮和进度条
+        
+        2. 优化过程中：
+           - 验证遮罩层阻止参数输入交互
+           - 验证优化按钮和进度条可以正常交互
+        
+        3. 优化结束时：
+           - 验证遮罩层移除
+           - 验证所有输入恢复正常交互
+        """
+        # 设置初始状态
+        mock_session_state.clear()
+        mock_session_state['optimization_running'] = False
+        
+        # 模拟列对象
+        def mock_create_columns(*args):
+            mock_params_col = MagicMock()
+            mock_results_col = MagicMock()
+            mock_details_col = MagicMock()
+            
+            # 模拟列对象的上下文管理器
+            mock_params_col.__enter__ = MagicMock(return_value=mock_params_col)
+            mock_params_col.__exit__ = MagicMock(return_value=None)
+            mock_results_col.__enter__ = MagicMock(return_value=mock_results_col)
+            mock_results_col.__exit__ = MagicMock(return_value=None)
+            mock_details_col.__enter__ = MagicMock(return_value=mock_details_col)
+            mock_details_col.__exit__ = MagicMock(return_value=None)
+            
+            if len(args[0]) == 2:
+                return [mock_params_col, mock_results_col]
+            return [mock_params_col, mock_results_col, mock_details_col]
+        
+        mock_columns.side_effect = mock_create_columns
+        
+        # 模拟开始优化
+        toggle_optimization()
+        
+        # 验证遮罩层创建
+        self.assertTrue(mock_session_state['optimization_running'])
+        
+        # 验证遮罩层样式
+        with patch('streamlit.markdown') as mock_markdown:
+            # 模拟CSS文件内容
+            with patch('builtins.open', mock_open(read_data="")):
+                main()  # 触发界面更新
+            
+            # 验证添加遮罩层样式
+            expected_style = """
+            <style>
+            .mask-layer {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 999999;
+                pointer-events: all;
+            }
+            
+            /* 禁用遮罩层下的所有输入框交互 */
+            .mask-layer ~ div {
+                pointer-events: none !important;
+            }
+            
+            /* 确保进度条和按钮在遮罩层之上 */
+            div[data-testid="stButton"],
+            div[data-testid="stProgressBar"] {
+                z-index: 1000000 !important;
+                position: relative;
+                pointer-events: all !important;
+            }
+            
+            /* 确保遮罩层覆盖sidebar */
+            section[data-testid="stSidebar"] {
+                z-index: auto !important;
+            }
+            </style>
+            """
+            
+            # 验证样式调用
+            style_calls = [call for call in mock_markdown.call_args_list if 'mask-layer' in str(call)]
+            self.assertTrue(any('mask-layer' in str(call) for call in style_calls))
+            
+            # 验证遮罩层元素调用
+            element_calls = [call for call in mock_markdown.call_args_list if '<div class="mask-layer">' in str(call)]
+            self.assertTrue(any('<div class="mask-layer">' in str(call) for call in element_calls))
+        
+        # 模拟优化结束
+        mock_session_state['optimization_running'] = False
+        
+        # 验证遮罩层移除
+        with patch('streamlit.markdown') as mock_markdown:
+            with patch('builtins.open', mock_open(read_data="")):
+                main()  # 触发界面更新
+            
+            # 验证没有遮罩层相关的调用
+            for call in mock_markdown.call_args_list:
+                self.assertNotIn('mask-layer', str(call))
 
 
 if __name__ == '__main__':

@@ -243,3 +243,44 @@ div.stProgress .st-emotion-cache-1y4p8pa > div {
     height: 0.5rem !important;
     border-radius: 0 !important;
 }
+
+.mask-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    pointer-events: all;
+}
+
+/* 确保取消按钮在遮罩层之上 */
+div[data-testid="stButton"] {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000 !important;
+    background: gray !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+div[data-testid="stButton"] button {
+    width: 100% !important;
+    padding: 0.5rem !important;
+    border-radius: 0 !important;
+    z-index: 1000 !important;
+}
+
+/* 禁用遮罩层下的输入框交互 */
+.mask-layer ~ div[data-testid="stVerticalBlock"] {
+    pointer-events: none;
+}
+
+/* 允许进度条显示在遮罩层之上 */
+div[data-testid="stProgressBar"] {
+    z-index: 1000 !important;
+    position: relative;
+}

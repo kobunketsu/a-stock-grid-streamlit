@@ -56,6 +56,10 @@ def init_page_config():
     css_path = os.path.join(ROOT_DIR, "static", "css", "main.css")
     with open(css_path) as f:
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    
+    # 初始化遮罩层状态
+    if 'show_mask' not in st.session_state:
+        st.session_state['show_mask'] = False
 
 def init_device_detection():
     """初始化设备检测"""
@@ -73,10 +77,10 @@ def init_device_detection():
 
 def init_optimization_state():
     """初始化优化状态"""
-    print("[DEBUG] Initializing optimization state")
     if 'optimization_running' not in st.session_state:
         st.session_state.optimization_running = False
-        print("[DEBUG] Initialized optimization_running state")
+    if 'show_mask' not in st.session_state:
+        st.session_state.show_mask = False
 
 def detect_mobile():
     """检测是否为移动设备"""
@@ -157,6 +161,52 @@ def create_layout_columns():
     st.session_state['results_col'] = results_col
     st.session_state['details_col'] = details_col
     return params_col, results_col, details_col
+
+def create_mask_layer():
+    """创建遮罩层，在优化过程中阻止参数输入交互"""
+    if st.session_state.get('optimization_running', False):
+        # 添加遮罩层样式
+        st.markdown(
+            """
+            <style>
+            .mask-layer {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: rgba(0, 0, 0, 0.5);  /* 改为黑色半透明 */
+                z-index: 999999;  /* 提高z-index以确保在sidebar之上 */
+                pointer-events: all;
+            }
+            
+            /* 禁用遮罩层下的所有输入框交互 */
+            .mask-layer ~ div {
+                pointer-events: none !important;
+            }
+            
+            /* 确保进度条和按钮在遮罩层之上 */
+            div[data-testid="stButton"],
+            div[data-testid="stProgressBar"] {
+                z-index: 1000000 !important;  /* 比遮罩层更高的z-index */
+                position: relative;
+                pointer-events: all !important;
+            }
+            
+            /* 确保遮罩层覆盖sidebar */
+            section[data-testid="stSidebar"] {
+                z-index: auto !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+        
+        # 添加遮罩层元素
+        st.markdown(
+            '<div class="mask-layer"></div>',
+            unsafe_allow_html=True
+        )
 
 def create_parameter_inputs(config):
     """创建参数输入区域"""
@@ -584,20 +634,20 @@ def validate_top_n(top_n: int) -> bool:
 #- 策略优化执行
 def toggle_optimization():
     """切换优化状态（开始/取消）"""
-    if not st.session_state.optimization_running:
+    if not st.session_state.get('optimization_running', False):
         # 开始优化
-        st.session_state.optimization_running = True
+        st.session_state['optimization_running'] = True
     else:
         # 取消优化
         cancel_optimization()
 
 def cancel_optimization():
     """取消优化"""
-    st.session_state.optimization_running = False
+    st.session_state['optimization_running'] = False
     if 'optimizer' in st.session_state:
-        optimizer = st.session_state.optimizer
+        optimizer = st.session_state['optimizer']
         optimizer.optimization_running = False
-        del st.session_state.optimizer
+        del st.session_state['optimizer']
     st.rerun()
 
 def handle_optimization(config, params):
@@ -1348,6 +1398,9 @@ def main():
         # 初始化页面配置
         init_page_config()
         
+        # 创建遮罩层（如果正在优化）
+        create_mask_layer()
+        
         # 初始化设备检测
         init_device_detection()
         
@@ -1381,12 +1434,12 @@ def main():
                 # 创建优化按钮
                 if create_optimization_button():
                     print("[DEBUG] Optimization button clicked")
-                    toggle_optimization()
-                    st.rerun()
+                    toggle_optimization()#不要改缩进
+                    st.rerun()#不要改缩进
         
                 # 如果正在优化中，处理优化过程
-                if st.session_state.optimization_running:
-                    handle_optimization(config, params)
+                if st.session_state.optimization_running:#不要改缩进
+                    handle_optimization(config, params)#不要改缩进
                 
             except Exception as e:
                 print(f"[ERROR] Error in parameter input section: {str(e)}")
@@ -1402,6 +1455,8 @@ def main():
         import traceback
         print(f"[ERROR] Stack trace: {traceback.format_exc()}")
         st.error(f"程序发生严重错误: {str(e)}")
+
+
 
 if __name__ == "__main__":
     try:
