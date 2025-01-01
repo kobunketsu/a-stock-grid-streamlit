@@ -571,18 +571,11 @@ class GridStrategyOptimizer:
                     
                 # 计算总体进度
                 if hasattr(self, 'progress_bar') and self.progress_bar is not None:
-                    progress = (current_trial / total_trials) * 100
+                    progress = current_trial / total_trials
+                    progress_text = l("optimization_progress_format").format(current_trial, int(total_trials))
                     print(f"[DEBUG] Updating progress bar: {progress:.2f}%")
-                    self.progress_bar.progress(int(progress))
+                    self.progress_bar.progress(progress, text=progress_text)
                     
-                if hasattr(self, 'status_text') and self.status_text is not None:
-                    status_message = l("optimization_progress_format").format(
-                        current_trial,
-                        total_trials,
-                        -study.best_value if study.best_value is not None else 0
-                    )
-                    print(f"[DEBUG] Updating status text: {status_message}")
-                    self.status_text.text(status_message)
             except Exception as e:
                 print(f"[ERROR] Progress update failed: {str(e)}")
                 print(f"[ERROR] Stack trace: {traceback.format_exc()}")
