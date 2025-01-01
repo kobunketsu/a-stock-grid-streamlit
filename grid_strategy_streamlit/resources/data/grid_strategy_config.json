@@ -8,7 +8,7 @@
     "initial_positions": 0,
     "initial_cash": 100000,
     "min_buy_times": 2,
-    "price_range_min": 17.2,
+    "price_range_min": 17.0,
     "price_range_max": 25.26,
     "n_trials": 10,
     "top_n": 5,
