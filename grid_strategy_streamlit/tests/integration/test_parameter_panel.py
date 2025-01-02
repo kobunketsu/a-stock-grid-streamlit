@@ -8,7 +8,7 @@ from src.utils.localization import l
 from src.views.parameter_panel import (
     validate_symbol, validate_date, validate_initial_cash,
     validate_min_buy_times, validate_price_range, validate_n_trials,
-    validate_top_n
+    validate_top_n,update_symbol_info,update_segment_days
 )
 
 class TestParameterPanel(unittest.TestCase):
@@ -31,6 +31,82 @@ class TestParameterPanel(unittest.TestCase):
         self.logger.debug(f"结束测试: {self._testMethodName}")
         patch.stopall()
     
+    @patch('src.views.parameter_panel.get_symbol_by_name')
+    @patch('src.views.parameter_panel.get_symbol_info')
+    @patch('streamlit.session_state')
+    def test_update_symbol_by_input_name_or_code(self, mock_session_state, mock_get_symbol_info, mock_get_symbol_by_name):
+        """测试通过股票名称或代码更新股票信息
+        
+        测试场景：
+        1. 有效股票代码：
+           - 输入000001，返回平安银行信息和价格区间
+           - 验证仅调用get_symbol_info
+        
+        2. 有效股票名称：
+           - 输入双成药业，返回股票信息和价格区间
+           - 验证仅调用get_symbol_info
+        
+        3. 无效股票代码：
+           - 输入无效代码，返回None
+           - 验证错误处理
+        
+        4. API异常：
+           - 模拟API异常，返回None
+           - 验证异常处理
+        """
+        self.logger.debug("开始测试 test_update_symbol_by_input_name_or_code")
+        
+        # 场景1：通过股票代码更新
+        self.logger.debug("场景1：通过股票代码更新")
+        mock_get_symbol_info.return_value = ("平安银行", "STOCK")
+        
+        name, price_range = update_symbol_info("000001")
+        
+        mock_get_symbol_info.assert_called_once_with("000001")
+        mock_get_symbol_by_name.assert_not_called()
+        self.assertEqual(name, "平安银行")
+        self.assertIsNotNone(price_range)
+        
+        # 场景2：通过股票名称更新
+        self.logger.debug("场景2：通过股票名称更新")
+        mock_get_symbol_info.reset_mock()
+        mock_get_symbol_by_name.reset_mock()
+        mock_get_symbol_by_name.return_value = "002693"
+        mock_get_symbol_info.return_value = ("双成药业", "STOCK")
+        
+        name, price_range = update_symbol_info("双成药业")
+        
+        mock_get_symbol_by_name.assert_not_called()  # 因为直接使用代码更新
+        mock_get_symbol_info.assert_called_once_with("双成药业")
+        self.assertEqual(name, "双成药业")
+        self.assertIsNotNone(price_range)
+        
+        # 场景3：无效的股票代码
+        self.logger.debug("场景3：无效的股票代码")
+        mock_get_symbol_info.reset_mock()
+        mock_get_symbol_by_name.reset_mock()
+        mock_get_symbol_info.return_value = (None, None)
+        
+        name, price_range = update_symbol_info("invalid_code")
+        
+        mock_get_symbol_info.assert_called_once_with("invalid_code")
+        mock_get_symbol_by_name.assert_not_called()
+        self.assertIsNone(name)
+        self.assertIsNone(price_range)
+        
+        # 场景4：API异常
+        self.logger.debug("场景4：API异常")
+        mock_get_symbol_info.reset_mock()
+        mock_get_symbol_by_name.reset_mock()
+        mock_get_symbol_info.side_effect = Exception("API错误")
+        
+        name, price_range = update_symbol_info("000001")
+        
+        mock_get_symbol_info.assert_called_once_with("000001")
+        mock_get_symbol_by_name.assert_not_called()
+        self.assertIsNone(name)
+        self.assertIsNone(price_range)
+
     def test_validate_symbol(self):
         """测试证券代码验证
         

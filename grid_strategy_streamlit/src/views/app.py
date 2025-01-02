@@ -845,56 +845,7 @@ def display_strategy_details(strategy_params):
 
 #endregion
 
-#region 工具函数
-#工具函数，包括：
-#- 证券信息更新
-#- 分段天数计算
-#- 其他辅助功能
-def update_symbol_info(symbol: str) -> Tuple[str, Tuple[float, float]]:
-    """更新证券信息返回证券名称和价格区间"""
-    try:
-        print(f"[DEBUG] Updating symbol info for: {symbol}")
-        # 获证券信息
-        name, security_type = get_symbol_info(symbol)
-        print(f"[DEBUG] Got symbol info - name: {name}, type: {security_type}")
-        if name is None:
-            print("[DEBUG] Symbol not found")
-            st.error(l("symbol_not_found"))
-            return None, None
-        
-        # 获价格区间
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
-        print(f"[DEBUG] Calculating price range from {start_date} to {end_date}")
-        price_min, price_max = calculate_price_range(
-            symbol,
-            start_date.strftime("%Y%m%d"),
-            end_date.strftime("%Y%m%d"),
-            security_type
-        )
-        print(f"[DEBUG] Got price range - min: {price_min}, max: {price_max}")
-        if price_min is None or price_max is None:
-            print("[DEBUG] Failed to get price range")
-            st.error(l("failed_to_get_price_range"))
-            return name, None
-        
-        print(f"[DEBUG] Successfully updated symbol info - name: {name}, price range: ({price_min}, {price_max})")
-        return name, (price_min, price_max)
-        
-    except Exception as e:
-        print(f"[ERROR] Error updating symbol info: {str(e)}")
-        st.error(l("failed_to_update_symbol_info_format").format(str(e)))
-        return None, None
 
-def update_segment_days(min_buy_times: int) -> str:
-    """更新分段天数示"""
-    try:
-        from segment_utils import get_segment_days
-        days = get_segment_days(min_buy_times)
-        return f"{l('days_per_segment')}: {days} {l('trading_days')}"
-    except Exception as e:
-        logging.error(f"计算分段天数失败: {str(e)}")
-        return ""
 
 def display_strategy_details(strategy_params):
     """显示特定参数组合的策略详情"""
@@ -1011,7 +962,6 @@ def display_strategy_details(strategy_params):
         st.error(f"{l('run_strategy_details_error_format').format(error=str(e))}")
         return
 
-#endregion
 
 #region 主函数
 #主程序入口
