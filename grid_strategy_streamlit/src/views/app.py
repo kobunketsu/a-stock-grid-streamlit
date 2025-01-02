@@ -35,11 +35,14 @@ from src.services.business.stock_grid_optimizer import GridStrategyOptimizer
 st.get_user_agent = get_user_agent
 
 # 初始化页面配置（必须是第一个st命令）
+if 'sidebar_state' not in st.session_state:
+    st.session_state.sidebar_state = 'expanded'  # 初始时展开
+
 st.set_page_config(
     page_title=l("app_title"),
     page_icon="📈",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state=st.session_state.sidebar_state
 )
 
 #region 初始化和配置
@@ -728,6 +731,8 @@ def handle_optimization(config, params):
         st.session_state['new_results'] = True
         st.session_state['optimization_results'] = results
         st.session_state.optimization_running = False
+        # 优化完成后设置sidebar状态为collapsed（收起）
+        st.session_state.sidebar_state = 'collapsed'
         st.rerun()
     else:
         print("[DEBUG] Optimization failed or was cancelled")
@@ -862,7 +867,7 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
             
         # 保存当前的配置信息
         st.session_state['saved_config'] = {
-            'symbol': st.session_state.get('symbol_input', ''),  # 从输入字段获取
+            'symbol': st.session_state.get('symbol_input', ''),
             'symbol_name': st.session_state.get('symbol_name', ''),
             'start_date': st.session_state.get('start_date', datetime.strptime('2024-10-10', '%Y-%m-%d')),
             'end_date': st.session_state.get('end_date', datetime.strptime('2024-12-20', '%Y-%m-%d')),
@@ -876,14 +881,13 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
         }
         print(f"[DEBUG] Saved config: {st.session_state['saved_config']}")
         
-        # 如果是移动端，设置滚动标志
-        if st.session_state.get('is_mobile', False):
-            st.session_state['scroll_to_top'] = True
-            print("[DEBUG] Set scroll_to_top flag for mobile")
+        # 确保sidebar收起
+        st.session_state.sidebar_state = 'collapsed'
+        
     elif 'optimization_results' not in st.session_state:
         print("[DEBUG] No results to display")
         return
-    
+        
     # 在结果列中显示优化结果
     with results_col:
         # 如果是移动端且需要滚动到顶部
