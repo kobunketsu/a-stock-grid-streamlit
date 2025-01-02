@@ -175,27 +175,24 @@ def create_mask_layer():
                 left: 0;
                 right: 0;
                 bottom: 0;
-                background-color: rgba(0, 0, 0, 0.5);  /* 改为黑色半透明 */
-                z-index: 999999;  /* 提高z-index以确保在sidebar之上 */
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 999990;
                 pointer-events: all;
             }
-            
-            /* 禁用遮罩层下的所有输入框交互 */
-            .mask-layer ~ div {
+
+            /* 不修改sidebar的z-index 999991，让它保持默认行为 */
+
+            /* 为sidebar内的控件添加额外的遮罩 */
+            section[data-testid="stSidebar"] .element-container {
                 pointer-events: none !important;
             }
-            
-            /* 确保进度条和按钮在遮罩层之上 */
+
+            /* 保持必要控件可交互 */
             div[data-testid="stButton"],
             div[data-testid="stProgressBar"] {
-                z-index: 1000000 !important;  /* 比遮罩层更高的z-index */
                 position: relative;
+                z-index: 1000000;
                 pointer-events: all !important;
-            }
-            
-            /* 确保遮罩层覆盖sidebar */
-            section[data-testid="stSidebar"] {
-                z-index: auto !important;
             }
             </style>
             """,
