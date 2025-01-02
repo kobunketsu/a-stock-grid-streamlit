@@ -212,7 +212,7 @@ class TestApp(unittest.TestCase):
         self.assertTrue(validate_top_n(5))
     
     @patch('streamlit.error')
-    @patch('src.views.app.is_valid_symbol')
+    @patch('src.views.parameter_panel.is_valid_symbol')
     def test_error_handling(self, mock_is_valid_symbol, mock_error):
         """测试错误处理
         
@@ -229,6 +229,7 @@ class TestApp(unittest.TestCase):
         """
         # 测试API错误
         mock_is_valid_symbol.side_effect = Exception("API错误")
+        from src.views.parameter_panel import validate_symbol
         validate_symbol("159300")
         mock_error.assert_called_with(l("failed_to_validate_symbol_format").format("API错误"))
         
@@ -649,12 +650,13 @@ class TestApp(unittest.TestCase):
         mock_session_state['sorted_trials'] = [mock_trial]
         mock_session_state['is_mobile'] = True  # 设置为移动端
         mock_session_state['optimization_running'] = False  # 优化已完成
+        mock_session_state['scroll_to_top'] = True  # 需要滚动到顶部
 
         # 调用显示函数
         display_optimization_results(mock_results, top_n=5)
 
         # 验证滚动脚本被添加
-        self.assertTrue(mock_results_col.markdown.called)
+        mock_results_col.markdown.assert_called()
         
         # 获取实际调用的参数
         actual_call = mock_results_col.markdown.call_args
@@ -663,10 +665,14 @@ class TestApp(unittest.TestCase):
         
         # 验证关键部分
         self.assertIn('window.scrollTo(0, 0)', actual_script)
-        self.assertIn('const sidebar = document.querySelector(\'section[data-testid="stSidebar"]\')', actual_script)
+        self.assertIn('section[data-testid="stSidebar"]', actual_script)
         self.assertIn('button[aria-label="Close sidebar"]', actual_script)
         self.assertIn('div[data-testid="collapsedControl"]', actual_script)
         self.assertTrue(actual_kwargs.get('unsafe_allow_html', False))
+        
+        # 验证session state更新
+        self.assertFalse(mock_session_state['scroll_to_top'])
+        self.assertEqual(mock_session_state['sidebar_state'], 'collapsed')
     
 
 

@@ -503,7 +503,10 @@ def display_optimization_results(results: Dict[str, Any], top_n: int) -> None:
         print(f"[DEBUG] Saved config: {st.session_state['saved_config']}")
         
         # 确保sidebar收起
-        st.session_state.sidebar_state = 'collapsed'
+        if not isinstance(st.session_state, dict):
+            st.session_state.sidebar_state = 'collapsed'
+        else:
+            st.session_state['sidebar_state'] = 'collapsed'
         
     elif 'optimization_results' not in st.session_state:
         print("[DEBUG] No results to display")
@@ -1056,12 +1059,12 @@ def main():
                 # 创建优化按钮
                 if create_optimization_button():
                     print("[DEBUG] Optimization button clicked")
-                    toggle_optimization()#不要改缩进
-                    st.rerun()#不要改缩进
-        
+                    toggle_optimization()
+                    st.rerun()
+                
                 # 如果正在优化中，处理优化过程
-                if st.session_state.optimization_running:#不要改缩进
-                    handle_optimization(config, params)#不要改缩进
+                if st.session_state.optimization_running:
+                    handle_optimization(config, params)
                 
             except Exception as e:
                 print(f"[ERROR] Error in parameter input section: {str(e)}")

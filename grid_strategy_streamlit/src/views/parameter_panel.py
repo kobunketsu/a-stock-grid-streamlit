@@ -319,25 +319,24 @@ def validate_all_inputs(
 
 def validate_symbol(symbol: str) -> bool:
     """验证证券代码"""
+    print(f"[DEBUG] Validating symbol: {symbol}")
+    if not symbol:
+        print("[DEBUG] Symbol is empty")
+        st.error(l("please_enter_symbol_name_or_code"))
+        return False
+    
     try:
-        print(f"[DEBUG] Validating symbol: {symbol}")
-        if not symbol:
-            print("[DEBUG] Symbol is empty")
-            st.error(l("please_enter_symbol_name_or_code"))
-            return False
-        
         if not is_valid_symbol(symbol):
             print(f"[DEBUG] Symbol {symbol} is not valid")
             st.error(l("please_enter_valid_symbol_code"))
             return False
-        
-        print(f"[DEBUG] Symbol {symbol} is valid")
-        return True
-        
     except Exception as e:
         print(f"[ERROR] Error validating symbol: {str(e)}")
         st.error(l("failed_to_validate_symbol_format").format(str(e)))
         return False
+    
+    print(f"[DEBUG] Symbol {symbol} is valid")
+    return True
 
 def validate_initial_cash(initial_cash: int) -> bool:
     """验证初始资金"""
